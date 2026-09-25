@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/jpeg" href="/lax360-logo.jpeg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap"
+      rel="stylesheet"
+    />
+    <title>LAX360 Business CRM</title>
+    <script>
+      // Applies the persisted appearance (dark/light class + accent color) before React mounts,
+      // so there is never a flash of the wrong theme on load/refresh. Reads the same
+      // localStorage keys ThemeContext (src/context/ThemeContext.jsx) owns — kept in sync with
+      // that file if those key names ever change.
+      (function () {
+        try {
+          var mode = localStorage.getItem('business_crm_theme_mode_v1') || 'system';
+          var isDark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (isDark) document.documentElement.classList.add('dark');
+          var accent = localStorage.getItem('business_crm_theme_accent_v1') || 'purple';
+          document.documentElement.setAttribute('data-accent', accent);
+        } catch (e) {}
+      })();
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
