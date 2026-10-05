@@ -8,6 +8,7 @@ import { api } from '../../api/mockServer'
 import { salesUsers } from '../../data/users'
 import { FOLLOWUP_TYPES, REMINDER_OPTIONS } from '../../data/constants'
 import { formatDate } from '../../utils/format'
+import { followUpTaskFields } from '../Tasks/followUpTask'
 import { logLeadActivity } from './leadCommunication'
 
 /** Spec §18 — a real Follow-up record, not just a bare date. Updates the Lead's own
@@ -38,10 +39,9 @@ export function FollowUpModal({ open, onClose, lead, onLogged }) {
       followUpType: type, followUpDate: date, followUpTime: time || null, reminder, assignedTo: assignee,
       by: user.id,
     })).then(() => api.post('/tasks', {
-      id: `TSK-${Date.now().toString(36).toUpperCase().slice(-6)}`,
       title: `${type} follow-up — ${lead.name} (${lead.company})`,
       relatedType: 'Lead', relatedId: lead.id, relatedName: lead.name,
-      assignedTo: assignee, priority: lead.priority || 'Medium', dueDate: date, status: 'Pending', description: notes,
+      assignedTo: assignee, priority: lead.priority || 'Medium', dueDate: date, description: notes, ...followUpTaskFields({ type, time, reminder }),
     })).then(() => {
       setSaving(false)
       toast('Follow-up scheduled.', { type: 'success' })

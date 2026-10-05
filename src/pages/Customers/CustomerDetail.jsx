@@ -5,6 +5,7 @@ import {
   LifeBuoy, Trash2, Pencil, Layers, ChevronRight, User, Target,
 } from 'lucide-react'
 import { PageHeader } from '../../components/common/PageHeader'
+import { RecordTasksButton } from '../Tasks/RecordTasksButton'
 import { Breadcrumbs } from '../../components/common/Breadcrumbs'
 import { Tabs } from '../../components/common/Tabs'
 import { StatusBadge, Badge } from '../../components/common/Badge'
@@ -18,8 +19,6 @@ import { ActivityTimeline } from '../../components/common/ActivityTimeline'
 import { api } from '../../api/mockServer'
 import { useToast } from '../../context/ToastContext'
 import { projectsByCustomer } from '../../data/projects'
-import { invoicesByCustomer } from '../../data/invoices'
-import { PAYMENTS } from '../../data/payments'
 import { DOCUMENTS } from '../../data/documents'
 import { TICKETS } from '../../data/tickets'
 import { getUserById, USERS } from '../../data/users'
@@ -42,6 +41,9 @@ export default function CustomerDetail() {
   const [contacts, setContacts] = useState([])
   const [deals, setDeals] = useState([])
   const [quotations, setQuotations] = useState([])
+  const [salesOrders, setSalesOrders] = useState([])
+  const [invoices, setInvoices] = useState([])
+  const [payments, setPayments] = useState([])
   const [activities, setActivities] = useState([])
   const { toast } = useToast()
 
@@ -61,29 +63,53 @@ export default function CustomerDetail() {
       api.get('/contacts', { params: { all: true } }),
       api.get('/deals', { params: { all: true } }),
       api.get('/quotations', { params: { all: true } }),
-    ]).then(([contactsRes, dealsRes, quotationsRes]) => {
+      api.get('/salesOrders', { params: { all: true } }),
+      api.get('/invoices', { params: { all: true } }),
+      api.get('/payments', { params: { all: true } }),
+    ]).then(([contactsRes, dealsRes, quotationsRes, ordersRes, invoicesRes, paymentsRes]) => {
       const companyContacts = contactsRes.data.filter((c) => c.companyId === customer.companyId)
       const companyDeals = dealsRes.data.filter((d) => d.companyId === customer.companyId)
-      const customerQuotations = quotationsRes.data.filter((q) => q.customerId === customer.id)
+      // By companyId, not just customerId — a quotation can exist (and should show here) before
+      // it ever gets backfilled onto this specific Customer record.
+      const customerQuotations = quotationsRes.data.filter((q) => q.companyId === customer.companyId)
       setContacts(companyContacts)
       setDeals(companyDeals)
       setQuotations(customerQuotations)
-      const ids = new Set([...companyContacts.map((c) => c.id), ...companyDeals.map((d) => d.id), customer.id])
+      // Live, by customerId — an order/invoice/payment raised moments ago appears immediately.
+      const customerOrders = ordersRes.data.filter((o) => o.customerId === customer.id)
+      setSalesOrders(customerOrders)
+      setInvoices(invoicesRes.data.filter((i) => i.customerId === customer.id))
+      setPayments(paymentsRes.data.filter((p) => p.customerId === customer.id))
+      const ids = new Set([...companyContacts.map((c) => c.id), ...companyDeals.map((d) => d.id), ...customerOrders.map((o) => o.id), customer.id])
       api.get('/activities', { params: { all: true } }).then((res) => {
-        setActivities(res.data.filter((a) => ids.has(a.relatedId)).sort((a, b) => new Date(b.date) - new Date(a.date)))
+        setActivities(res.data.filter((a) => ids.has(a.relatedId) || (a.source === 'manual' && a.links?.customerId === customer.id)).sort((a, b) => new Date(b.date) - new Date(a.date)))
       })
     })
   }, [customer])
 
   const wonDeals = useMemo(() => deals.filter((d) => d.stage === 'Closed Won'), [deals])
+  // What this customer has actually bought: catalog items (by ID) from won deals and from non-cancelled sales orders, with units and value from the order lines.
   const services = useMemo(() => {
     const map = new Map()
-    wonDeals.forEach((d) => map.set(d.service, (map.get(d.service) || 0) + 1))
-    return Array.from(map.entries()).map(([service, count]) => ({ service, count }))
-  }, [wonDeals])
+    const entry = (productId, name) => {
+      const k = productId || `n:${name}`
+      if (!map.has(k)) map.set(k, { key: k, productId: productId || null, service: name, code: null, count: 0, orders: 0, units: 0, value: 0 })
+      return map.get(k)
+    }
+    wonDeals.forEach((d) => { entry(d.productId, d.service).count += 1 })
+    salesOrders.filter((o) => o.status !== 'Cancelled').forEach((o) => {
+      const seen = new Set()
+      ;(o.items || []).forEach((it) => {
+        const e = entry(it.productId, it.name)
+        e.code = e.code || it.productCode || null
+        e.units += Number(it.qty) || 0
+        e.value += (Number(it.qty) || 0) * (Number(it.unitPrice) || 0) * (1 - (Number(it.discount) || 0) / 100)
+        if (!seen.has(e.key)) { seen.add(e.key); e.orders += 1 }
+      })
+    })
+    return Array.from(map.values())
+  }, [wonDeals, salesOrders])
   const projects = useMemo(() => (customer ? projectsByCustomer(customer.id) : []), [customer])
-  const invoices = useMemo(() => (customer ? invoicesByCustomer(customer.id) : []), [customer])
-  const payments = useMemo(() => (customer ? PAYMENTS.filter((p) => p.customerId === customer.id) : []), [customer])
   const documents = useMemo(() => (customer ? DOCUMENTS.filter((d) => d.relatedCustomerId === customer.id) : []), [customer])
   const tickets = useMemo(() => (customer ? TICKETS.filter((t) => t.customerId === customer.id) : []), [customer])
 
@@ -125,6 +151,7 @@ export default function CustomerDetail() {
     { value: 'deals', label: 'Deals', count: deals.length },
     { value: 'projects', label: 'Projects', count: projects.length },
     { value: 'quotations', label: 'Quotations', count: quotations.length },
+    { value: 'salesorders', label: 'Sales Orders', count: salesOrders.length },
     { value: 'invoices', label: 'Invoices', count: invoices.length },
     { value: 'payments', label: 'Payments', count: payments.length },
     { value: 'documents', label: 'Documents', count: documents.length },
@@ -137,6 +164,7 @@ export default function CustomerDetail() {
     { label: 'Deals', count: deals.length, icon: Handshake },
     { label: 'Quotations', count: quotations.length, icon: FileText },
     { label: 'Projects', count: projects.length, icon: FolderKanban },
+    { label: 'Sales Orders', count: salesOrders.length, icon: FileText },
     { label: 'Invoices', count: invoices.length, icon: FileText },
     { label: 'Payments', count: payments.length, icon: Wallet },
     { label: 'Support', count: tickets.length, icon: LifeBuoy },
@@ -150,6 +178,8 @@ export default function CustomerDetail() {
         description={customer.industry}
         actions={
           <>
+            <RecordTasksButton type="Customer" id={customer.id} label={customer.name} />
+            <Button variant="secondary" icon={FileText} onClick={() => navigate(`/quotations?companyId=${customer.companyId}`)}>Create Quotation</Button>
             <Button variant="secondary" icon={Pencil} onClick={() => setEditOpen(true)}>Edit</Button>
             <Button variant="danger" icon={Trash2} onClick={() => setDeleteOpen(true)}>Delete</Button>
           </>
@@ -257,12 +287,12 @@ export default function CustomerDetail() {
         services.length === 0 ? <EmptyState icon={Layers} title="No services purchased yet" description="Services will appear here once a deal with this customer's company is won." /> : (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
             {services.map((s) => (
-              <div key={s.service} className="rounded-2xl border border-ink-100 bg-white p-4 dark:border-ink-800 dark:bg-ink-900">
+              <div key={s.key} role={s.productId ? 'link' : undefined} tabIndex={s.productId ? 0 : undefined} onClick={() => s.productId && navigate(`/products/${s.productId}`)} onKeyDown={(e) => e.key === 'Enter' && s.productId && navigate(`/products/${s.productId}`)} className={`rounded-2xl border border-ink-100 bg-white p-4 dark:border-ink-800 dark:bg-ink-900 ${s.productId ? 'cursor-pointer hover:shadow-card-hover' : ''}`}>
                 <div className="flex items-center gap-3">
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-brand-50 text-brand-600 dark:bg-brand-900/30 dark:text-brand-400"><Layers size={16} /></span>
-                  <div>
-                    <p className="text-sm font-semibold text-ink-800 dark:text-ink-100">{s.service}</p>
-                    <p className="text-xs text-ink-500 dark:text-ink-400">{s.count} won {s.count === 1 ? 'deal' : 'deals'}</p>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-ink-800 dark:text-ink-100">{s.service}{s.code && <span className="ml-2 font-mono text-[11px] font-normal text-ink-400">{s.code}</span>}</p>
+                    <p className="text-xs text-ink-500 dark:text-ink-400">{[s.count ? `${s.count} won ${s.count === 1 ? 'deal' : 'deals'}` : null, s.orders ? `${s.orders} ${s.orders === 1 ? 'order' : 'orders'} · ${s.units} units · ${formatCurrency(s.value)}` : null].filter(Boolean).join(' · ')}</p>
                   </div>
                 </div>
               </div>
@@ -343,6 +373,33 @@ export default function CustomerDetail() {
         )
       )}
 
+      {tab === 'salesorders' && (
+        salesOrders.length === 0 ? <EmptyState title="No sales orders yet" description="Sales orders appear here once a quotation for this customer is accepted and converted." /> : (
+          <div className="overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-card dark:border-ink-800 dark:bg-ink-900">
+            <div className="scrollbar-thin overflow-x-auto">
+              <table className="w-full min-w-[560px] text-sm">
+                <thead>
+                  <tr className="border-b border-ink-100 bg-ink-50/60 text-left text-xs font-semibold uppercase text-ink-500 dark:border-ink-800 dark:bg-ink-800/40 dark:text-ink-400">
+                    <th className="px-4 py-3">Sales Order #</th><th className="px-4 py-3">Quotation</th><th className="px-4 py-3">Order date</th><th className="px-4 py-3">Amount</th><th className="px-4 py-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {salesOrders.map((o) => (
+                    <tr key={o.id} onClick={() => navigate(`/sales-orders/${o.id}`)} className="cursor-pointer border-b border-ink-50 last:border-0 hover:bg-ink-50/60 dark:border-ink-800/60 dark:hover:bg-ink-800/40">
+                      <td className="px-4 py-3 font-medium text-ink-800 dark:text-ink-100">{o.number}</td>
+                      <td className="px-4 py-3 text-ink-600 dark:text-ink-300">{o.quotationNumber || '—'}</td>
+                      <td className="px-4 py-3 text-ink-600 dark:text-ink-300">{formatDate(o.orderDate)}</td>
+                      <td className="px-4 py-3 text-ink-600 dark:text-ink-300">{formatCurrency(o.amount)}</td>
+                      <td className="px-4 py-3"><StatusBadge status={o.status} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      )}
+
       {tab === 'invoices' && (
         invoices.length === 0 ? <EmptyState title="No invoices yet" description="No invoices have been raised for this customer." /> : (
           <div className="overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-card dark:border-ink-800 dark:bg-ink-900">
@@ -355,7 +412,7 @@ export default function CustomerDetail() {
                 </thead>
                 <tbody>
                   {invoices.map((inv) => (
-                    <tr key={inv.id} className="border-b border-ink-50 last:border-0 dark:border-ink-800/60">
+                    <tr key={inv.id} onClick={() => navigate(`/invoices/${inv.id}`)} className="cursor-pointer border-b border-ink-50 last:border-0 hover:bg-ink-50/60 dark:border-ink-800/60 dark:hover:bg-ink-800/40">
                       <td className="px-4 py-3 font-medium text-ink-800 dark:text-ink-100">{inv.number}</td>
                       <td className="px-4 py-3 text-ink-600 dark:text-ink-300">{formatCurrency(inv.amount)}</td>
                       <td className="px-4 py-3 text-ink-600 dark:text-ink-300">{formatDate(inv.dueDate)}</td>

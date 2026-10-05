@@ -8,6 +8,7 @@ import { api } from '../../api/mockServer'
 import { salesUsers } from '../../data/users'
 import { FOLLOWUP_TYPES, REMINDER_OPTIONS } from '../../data/constants'
 import { formatDate } from '../../utils/format'
+import { followUpTaskFields } from '../Tasks/followUpTask'
 import { logDealActivity } from './dealCommunication'
 
 /** Mirrors src/pages/Leads/FollowUpModal.jsx — same field set (Type/Date/Time/Reminder/Assigned
@@ -39,10 +40,9 @@ export function FollowUpModal({ open, onClose, deal, onLogged }) {
       followUpType: type, followUpDate: date, followUpTime: time || null, reminder, assignedTo: assignee,
       by: user.id,
     })).then(() => api.post('/tasks', {
-      id: `TSK-${Date.now().toString(36).toUpperCase().slice(-6)}`,
       title: `${type} follow-up — ${deal.name}`,
       relatedType: 'Deal', relatedId: deal.id, relatedName: deal.name,
-      assignedTo: assignee, priority: deal.priority || 'Medium', dueDate: date, status: 'Pending', description: notes,
+      assignedTo: assignee, priority: deal.priority || 'Medium', dueDate: date, description: notes, ...followUpTaskFields({ type, time, reminder }),
     })).then(() => {
       setSaving(false)
       toast('Follow-up scheduled.', { type: 'success' })

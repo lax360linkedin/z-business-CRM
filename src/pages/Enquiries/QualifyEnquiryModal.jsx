@@ -1,4 +1,6 @@
 import { useEffect } from 'react'
+import { productByName } from '../../utils/productRules'
+import { useProducts, useServiceOptions, useAllServiceNames } from '../../hooks/useProducts'
 import { useForm } from 'react-hook-form'
 import { Modal } from '../../components/common/Modal'
 import { FormField, Input, Select, Textarea } from '../../components/common/FormField'
@@ -14,6 +16,8 @@ import { canTransition } from '../../data/enquiryWorkflow'
  */
 export function QualifyEnquiryModal({ open, onClose, enquiry, saving, onSave }) {
   const { register, handleSubmit, reset } = useForm({ defaultValues: {} })
+  const { products } = useProducts()
+  const serviceNames = useServiceOptions(enquiry?.interestedService)
 
   useEffect(() => {
     if (open && enquiry) {
@@ -37,7 +41,7 @@ export function QualifyEnquiryModal({ open, onClose, enquiry, saving, onSave }) 
   const canReject = canTransition(enquiry.status, 'Unqualified')
 
   const submit = (outcome) => handleSubmit((data) => {
-    onSave({ ...data, qualifiedAt: new Date().toISOString() }, outcome)
+    onSave({ ...data, productId: productByName(products, data.productInterest)?.id || null, qualifiedAt: new Date().toISOString() }, outcome)
   })()
 
   return (
@@ -80,7 +84,7 @@ export function QualifyEnquiryModal({ open, onClose, enquiry, saving, onSave }) 
         <FormField label="Product Interest" required>
           <Select {...register('productInterest', { required: true })}>
             <option value="">Select…</option>
-            {SERVICES.map((o) => <option key={o} value={o}>{o}</option>)}
+            {serviceNames.map((o) => <option key={o} value={o}>{o}</option>)}
           </Select>
         </FormField>
         <FormField label="Quantity">

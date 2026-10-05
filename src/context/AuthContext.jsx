@@ -1,15 +1,19 @@
-import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import { USERS, getUserById } from '../data/users'
 import { getPermissionsForRole } from '../data/permissions'
 import { getCollection, setCollection } from '../api/db'
 import { logAuditEvent } from '../utils/auditLog'
 import { genTempPassword } from '../utils/password'
+import { getDeviceId, getDeviceLabel } from '../utils/deviceId'
+import { SESSION_KEY, readSessionBlob, onSessionExpired } from '../utils/sessionToken'
+import {
+  createSession, getSession, validateSession, revokeSession,
+  isDeviceTrusted, trustDevice, listTrustedDevices, revokeDevice,
+} from '../utils/sessionStore'
 
 const AuthContext = createContext(null)
-const SESSION_KEY = 'business_crm_session'
 const EXPIRED_FLAG_KEY = 'business_crm_session_expired'
 const FORCE_LOGOUT_KEY = 'business_crm_force_logout'
-const IDLE_TIMEOUT_MS = 30 * 60 * 1000 // 30 minutes of inactivity
 const MAX_FAILED_ATTEMPTS = 5
 const LOCK_DURATION_MS = 15 * 60 * 1000 // 15 minutes, then auto-unlock
 
@@ -97,27 +101,31 @@ function mergeUser(account, employee, activeRole) {
     accountId: account.id,
     accountStatus: account.status,
     forcePasswordChange: account.forcePasswordChange,
-    mfaEnabled: !!account.mfaEnabled,
     initials: account.initials,
     avatarColor: account.avatarColor,
   }
 }
 
-function readStoredSession() {
-  try {
-    const raw = localStorage.getItem(SESSION_KEY) || sessionStorage.getItem(SESSION_KEY)
-    return raw ? JSON.parse(raw) : null
-  } catch {
-    return null
-  }
+function clearStoredSession() {
+  localStorage.removeItem(SESSION_KEY)
+  sessionStorage.removeItem(SESSION_KEY)
 }
 
-// Re-validates against the current (live) account record on every mount/restore, so a
-// session created before an admin locked/suspended/deactivated the account doesn't stay
-// "logged in."
+// Re-validates against the current (live) account record AND the server-side session record
+// (src/utils/sessionStore.js) on every mount/restore — so a session created before an admin
+// locked/suspended/deactivated the account, or one whose configured duration has simply run
+// out since the tab was last open, never stays "logged in" just because a localStorage blob
+// still exists. This is the check that makes "refresh the browser — session only valid if it
+// hasn't expired" and "backend-enforced expiration" real rather than a UI-only timer.
 function resolveSessionUser() {
-  const stored = readStoredSession()
+  const stored = readSessionBlob()
   if (!stored?.accountId) return null
+  const { valid, reason } = validateSession(stored.token)
+  if (!valid) {
+    clearStoredSession()
+    if (reason === 'expired' || reason === 'revoked') sessionStorage.setItem(EXPIRED_FLAG_KEY, '1')
+    return null
+  }
   let account = findAccountById(stored.accountId)
   if (!account) return null
   account = resolveEffectiveStatus(account)
@@ -136,10 +144,9 @@ export function lookupAssignableRoles(email) {
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(resolveSessionUser)
-  const idleTimer = useRef(null)
 
-  const persistSession = (account, rememberMe, activeRole, sessionId) => {
-    const payload = JSON.stringify({ accountId: account.id, activeRole, sessionId, loginTime: new Date().toISOString() })
+  const persistSession = (account, rememberMe, activeRole, token) => {
+    const payload = JSON.stringify({ accountId: account.id, activeRole, token, loginTime: new Date().toISOString() })
     if (rememberMe) {
       localStorage.setItem(SESSION_KEY, payload)
       sessionStorage.removeItem(SESSION_KEY)
@@ -155,12 +162,15 @@ export function AuthProvider({ children }) {
     sessionStorage.removeItem(SESSION_KEY)
   }
 
-  const finalizeLogin = (account, role, rememberMe) => {
+  const finalizeLogin = (account, role, rememberMe, deviceId) => {
     const employee = account.employeeId ? getUserById(account.employeeId) : null
     const merged = mergeUser(account, employee, role)
-    const sessionId = `SES-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`
+    // The actual, backend-held session record — `session.id` (the token) is the only thing
+    // persisted client-side to identify it; expiry is decided by reading this record back
+    // (see validateSession in sessionStore.js), never by trusting a client-side timestamp.
+    const session = createSession({ accountId: account.id, role, deviceId })
     setUser(merged)
-    persistSession(account, rememberMe, role, sessionId)
+    persistSession(account, rememberMe, role, session.id)
 
     const currentDevice = deviceFingerprint()
     if (account.lastDevice && account.lastDevice !== currentDevice) {
@@ -174,11 +184,12 @@ export function AuthProvider({ children }) {
   /**
    * Full login-page authentication, validated in this order: account exists → account
    * status (incl. brute-force lockout, auto-unlock) → password correct (tracking failed
-   * attempts) → selected role is one of the account's assigned roles. Returns either the
-   * signed-in user, or `{ mfaRequired: true, accountId, role }` if the account has MFA
-   * enabled — the caller (Login.jsx) must then complete `completeMfaLogin`.
+   * attempts) → selected role is one of the account's assigned roles → device trust. Returns
+   * either the signed-in user, or `{ mfaRequired: true, accountId, role }` if this is the
+   * first login from this device (or the device's trust has lapsed or been revoked) — the
+   * caller (Login.jsx) must then complete `completeMfaLogin` with the same `deviceId`.
    */
-  const authenticate = (email, password, role, rememberMe = true) => {
+  const authenticate = (email, password, role, rememberMe = true, deviceId) => {
     let account = findAccountByEmail(email)
     const attemptedUser = { name: account?.name || email, role: account?.role || role }
 
@@ -224,24 +235,39 @@ export function AuthProvider({ children }) {
       throw err
     }
 
-    if (account.mfaEnabled) {
-      logAuditEvent({ user: attemptedUser, action: 'MFA Challenge Sent', module: 'Authentication', detail: 'Password validated — awaiting OTP.' })
+    // Device-based two-step verification: 2FA on the first login per device, not every login.
+    // The ONLY thing that triggers a code is the device's own trust state held server-side
+    // (sessionStore.js trustedDevices): new device, revoked, or trust window lapsed. There is
+    // deliberately no per-account "always ask" flag any more — the seeded Super Admin/Admin
+    // accounts used to carry one, which made those logins ask for a code every time even from a
+    // verified device, and after every session expiry.
+    if (!isDeviceTrusted(account.id, deviceId)) {
+      logAuditEvent({
+        user: attemptedUser, action: 'MFA Challenge Sent', module: 'Authentication',
+        detail: 'Password validated — new, revoked or expired device, awaiting OTP.',
+      })
       return { mfaRequired: true, accountId: account.id, role, rememberMe }
     }
 
-    return finalizeLogin(account, role, rememberMe)
+    // Using a trusted device renews its trust window (sliding), so a regularly-used device
+    // never silently ages out.
+    trustDevice({ accountId: account.id, deviceId, deviceLabel: getDeviceLabel() })
+    return finalizeLogin(account, role, rememberMe, deviceId)
   }
 
-  /** Called after the Login page's OTP step verifies the code for an MFA-required account. */
-  const completeMfaLogin = (accountId, role, rememberMe) => {
+  /** Called after the Login page's OTP step verifies the code for an MFA-required account — registers (or renews) this device as trusted before completing login, so the NEXT login from it can skip straight to credentials-only. */
+  const completeMfaLogin = (accountId, role, rememberMe, deviceId) => {
     const account = findAccountById(accountId)
     if (!account) throw new Error('Session expired — please sign in again.')
-    logAuditEvent({ user: { name: account.name, role }, action: 'MFA Verification', module: 'Authentication', success: true })
-    return finalizeLogin(account, role, rememberMe)
+    trustDevice({ accountId, deviceId, deviceLabel: getDeviceLabel() })
+    logAuditEvent({ user: { name: account.name, role }, action: 'MFA Verification', module: 'Authentication', success: true, detail: 'Device registered as trusted.' })
+    return finalizeLogin(account, role, rememberMe, deviceId)
   }
 
   const logout = (reason) => {
     if (user) logAuditEvent({ user, action: reason === 'expired' ? 'Session Expired' : 'Logout', module: 'Authentication', success: true })
+    const token = readSessionBlob()?.token
+    if (token) revokeSession(token)
     setUser(null)
     clearSession()
     if (reason === 'expired') sessionStorage.setItem(EXPIRED_FLAG_KEY, '1')
@@ -273,14 +299,19 @@ export function AuthProvider({ children }) {
   }
 
   // Post-login convenience used only by the Header's "demo role switch" — intentionally
-  // bypasses credential checks since it's for exploring the app as a signed-in user, not
-  // a login path. Kept separate from `authenticate`, which is the real gate.
+  // bypasses credential/device checks since it's for exploring the app as a signed-in user,
+  // not a login path. Kept separate from `authenticate`, which is the real gate. Still needs a
+  // genuine server-side session (not a decorative token string) — every protected API call now
+  // checks the `sessions` collection, so a fake token would 401 on the very next request.
   const loginAsRole = (role) => {
     const employee = USERS.find((u) => u.role === role) || USERS[0]
     const account = getAccounts().find((a) => a.employeeId === employee.id)
     const merged = account ? mergeUser(account, employee, role) : employee
     setUser(merged)
-    if (account) persistSession(account, true, role, `SES-${Date.now().toString(36)}`)
+    if (account) {
+      const session = createSession({ accountId: account.id, role, deviceId: getDeviceId() })
+      persistSession(account, true, role, session.id)
+    }
     return merged
   }
 
@@ -345,20 +376,6 @@ export function AuthProvider({ children }) {
     return tempPassword
   }
 
-  /**
-   * Self-service Two-Step Verification (2FA) on/off toggle, from Profile → Login Security.
-   * Takes effect on the *next* sign-in — `authenticate()` reads `account.mfaEnabled` fresh
-   * from the live account record every time, so this never needs to touch the current
-   * session's auth state, only the account record and the locally-mirrored `user` flag the
-   * Profile toggle reads back.
-   */
-  const setMfaEnabled = (enabled) => {
-    if (!user?.accountId) return
-    patchAccount(user.accountId, { mfaEnabled: enabled })
-    setUser((u) => (u ? { ...u, mfaEnabled: enabled } : u))
-    logAuditEvent({ user, action: enabled ? 'MFA Enabled' : 'MFA Disabled', module: 'Authentication', success: true, detail: 'Changed from Profile → Login Security.' })
-  }
-
   const permissions = useMemo(() => (user ? getPermissionsForRole(user.role) : {}), [user?.role])
 
   const hasPermission = (moduleLabel, action = 'view') => {
@@ -366,20 +383,48 @@ export function AuthProvider({ children }) {
     return !!permissions[moduleLabel]?.[action]
   }
 
-  // Idle session timeout: signs the user out and flags "session expired" for the next
-  // login-page visit, matching the enterprise session-expiry requirement.
+  /** Listed trusted devices for the signed-in user — Profile → Trusted Devices reads this. */
+  const listMyTrustedDevices = () => (user?.accountId ? listTrustedDevices(user.accountId) : [])
+
+  /** Revokes a trusted device; if it's the one this tab is currently running on, also ends the current session immediately rather than leaving it live until the next natural expiry. */
+  const revokeMyDevice = (deviceRecordId, isCurrentDevice) => {
+    revokeDevice(deviceRecordId)
+    logAuditEvent({ user, action: 'Trusted Device Revoked', module: 'Authentication', success: true, detail: isCurrentDevice ? 'Revoked the device currently in use.' : undefined })
+    if (isCurrentDevice) logout('revoked')
+  }
+
+  // Session expiration, enforced server-side: the mock API layer (src/api/mockServer.js)
+  // independently rejects any request once the session record it looks up has expired or been
+  // revoked, and fires `crm:session-expired` the moment that happens — this listener is what
+  // reacts to that (clear local state, show the "session expired" message on next Login visit)
+  // the instant it's caught, rather than waiting for this tab's own timer to also notice.
+  useEffect(() => onSessionExpired((reason) => { if (user) logout(reason === 'revoked' ? 'revoked' : 'expired') }), [user]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Absolute session-duration timer — a courtesy that proactively logs an idle tab out right
+  // at the configured duration (so "automatically log out" doesn't require the user to first
+  // trigger an API call); the 30s re-validation guards against setTimeout drift in a
+  // throttled/background tab over a multi-hour duration. Neither is the actual authority — both
+  // ultimately just call logout() after independently confirming the same server-side session
+  // record (readSessionBlob().token / validateSession) is no longer valid, the same check
+  // mockServer.js performs on every protected request.
   useEffect(() => {
     if (!user) return
-    const resetTimer = () => {
-      clearTimeout(idleTimer.current)
-      idleTimer.current = setTimeout(() => logout('expired'), IDLE_TIMEOUT_MS)
+    const token = readSessionBlob()?.token
+    if (!token) return
+
+    const checkNow = () => {
+      const { valid, reason } = validateSession(token)
+      if (!valid) logout(reason === 'revoked' ? 'revoked' : 'expired')
     }
-    const events = ['mousemove', 'keydown', 'mousedown', 'scroll', 'touchstart']
-    events.forEach((evt) => window.addEventListener(evt, resetTimer))
-    resetTimer()
+
+    const session = getSession(token)
+    const msRemaining = session ? session.expiresAt - Date.now() : 0
+    const preciseTimer = setTimeout(checkNow, Math.max(0, msRemaining))
+    const safetyInterval = setInterval(checkNow, 30 * 1000)
+
     return () => {
-      clearTimeout(idleTimer.current)
-      events.forEach((evt) => window.removeEventListener(evt, resetTimer))
+      clearTimeout(preciseTimer)
+      clearInterval(safetyInterval)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.accountId])
@@ -403,7 +448,8 @@ export function AuthProvider({ children }) {
         updateOwnPassword,
         adminSetPassword,
         adminResetPassword,
-        setMfaEnabled,
+        listMyTrustedDevices,
+        revokeMyDevice,
       }}
     >
       {children}

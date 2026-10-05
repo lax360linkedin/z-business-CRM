@@ -1,9 +1,11 @@
 import { useEffect } from 'react'
+import { productByName } from '../../utils/productRules'
+import { useProducts, useServiceOptions, useAllServiceNames } from '../../hooks/useProducts'
 import { useForm } from 'react-hook-form'
 import { Modal } from '../../components/common/Modal'
 import { FormField, Input, Select, Textarea } from '../../components/common/FormField'
 import { Button } from '../../components/common/Button'
-import { LEAD_QUALIFICATION_TIMELINES, COMPANY_SIZES, SERVICES, DECISION_MAKER_STATUSES, BUSINESS_NEED_OPTIONS } from '../../data/constants'
+import { LEAD_QUALIFICATION_TIMELINES, COMPANY_SIZES, DECISION_MAKER_STATUSES, BUSINESS_NEED_OPTIONS } from '../../data/constants'
 import { computeQualificationScore, canTransition } from '../../data/leadWorkflow'
 
 /**
@@ -13,6 +15,8 @@ import { computeQualificationScore, canTransition } from '../../data/leadWorkflo
  * successfully" means, so a valid submit always moves Contacted → Qualified.
  */
 export function QualifyLeadModal({ open, onClose, lead, saving, onSave }) {
+  const { products } = useProducts()
+  const serviceNames = useServiceOptions(lead?.service)
   const { register, handleSubmit, watch, reset } = useForm({
     defaultValues: {
       requirement: lead?.requirement || '',
@@ -65,7 +69,7 @@ export function QualifyLeadModal({ open, onClose, lead, saving, onSave }) {
       decisionMakerDesignation: ['Yes', 'Partially'].includes(data.decisionMakerIdentified) ? data.decisionMakerDesignation : '',
       businessNeedOther: data.businessNeed === 'Other' ? data.businessNeedOther : '',
     }
-    const qualification = { ...cleaned, qualificationScore: computeQualificationScore(cleaned), qualifiedAt: new Date().toISOString() }
+    const qualification = { ...cleaned, productId: productByName(products, cleaned.productInterest)?.id || null, qualificationScore: computeQualificationScore(cleaned), qualifiedAt: new Date().toISOString() }
     onSave(qualification, outcome)
   })()
 
@@ -121,7 +125,7 @@ export function QualifyLeadModal({ open, onClose, lead, saving, onSave }) {
         <FormField label="Product Interest" required>
           <Select {...register('productInterest', { required: true })}>
             <option value="">Select…</option>
-            {SERVICES.map((o) => <option key={o} value={o}>{o}</option>)}
+            {serviceNames.map((o) => <option key={o} value={o}>{o}</option>)}
           </Select>
         </FormField>
         <FormField label="Company Size" required>

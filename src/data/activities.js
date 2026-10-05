@@ -1,5 +1,4 @@
 import { resetSeed, pick, randInt, daysFromNow } from '../utils/generators'
-import { ACTIVITY_TYPES } from './constants'
 import { LEADS } from './leads'
 import { DEALS } from './deals'
 import { CUSTOMERS } from './customers'
@@ -28,8 +27,11 @@ function relatedEntity(i) {
   return pool[i % pool.length]
 }
 
+// Seed activities are limited to the types that have sample note text.
+const SEED_TYPES = Object.keys(NOTES_BY_TYPE)
+
 export const ACTIVITIES = Array.from({ length: 60 }).map((_, i) => {
-  const type = pick(ACTIVITY_TYPES)
+  const type = pick(SEED_TYPES)
   const related = relatedEntity(i)
   return {
     id: `ACT-${String(15000 + i)}`,

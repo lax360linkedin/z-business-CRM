@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Mail, Phone, Globe, MapPin, IndianRupee, Handshake, FolderKanban, Paperclip, Trash2, Pencil, Inbox } from 'lucide-react'
+import { Mail, Phone, Globe, MapPin, IndianRupee, Handshake, FolderKanban, Paperclip, Trash2, Pencil, Inbox, FileText } from 'lucide-react'
 import { PageHeader } from '../../components/common/PageHeader'
+import { RecordTasksButton } from '../Tasks/RecordTasksButton'
 import { Breadcrumbs } from '../../components/common/Breadcrumbs'
 import { Tabs } from '../../components/common/Tabs'
 import { StatusBadge, PriorityBadge } from '../../components/common/Badge'
@@ -38,6 +39,7 @@ export default function CompanyDetail() {
   const [customer, setCustomer] = useState(null)
   const [enquiries, setEnquiries] = useState([])
   const [leads, setLeads] = useState([])
+  const [quotations, setQuotations] = useState([])
   const [activities, setActivities] = useState([])
   const { toast } = useToast()
 
@@ -60,23 +62,26 @@ export default function CompanyDetail() {
       api.get('/customers', { params: { all: true } }),
       api.get('/enquiries', { params: { all: true } }),
       api.get('/leads', { params: { all: true } }),
-    ]).then(([contactsRes, dealsRes, customersRes, enquiriesRes, leadsRes]) => {
+      api.get('/quotations', { params: { all: true } }),
+    ]).then(([contactsRes, dealsRes, customersRes, enquiriesRes, leadsRes, quotationsRes]) => {
       const companyContacts = contactsRes.data.filter((c) => c.companyId === company.id)
       const companyDeals = dealsRes.data.filter((d) => d.companyId === company.id)
       const matchedCustomer = customersRes.data.find((c) => c.companyId === company.id) || null
       const companyEnquiries = enquiriesRes.data.filter((e) => e.companyId === company.id)
       const companyLeads = leadsRes.data.filter((l) => l.companyId === company.id)
+      const companyQuotations = quotationsRes.data.filter((q) => q.companyId === company.id)
       setContacts(companyContacts)
       setDeals(companyDeals)
       setCustomer(matchedCustomer)
       setEnquiries(companyEnquiries)
       setLeads(companyLeads)
+      setQuotations(companyQuotations)
       const ids = new Set([
         ...companyContacts.map((c) => c.id), ...companyDeals.map((d) => d.id), matchedCustomer?.id,
         ...companyEnquiries.map((e) => e.id), ...companyLeads.map((l) => l.id),
       ].filter(Boolean))
       api.get('/activities', { params: { all: true } }).then((res) => {
-        setActivities(res.data.filter((a) => ids.has(a.relatedId)).sort((a, b) => new Date(b.date) - new Date(a.date)))
+        setActivities(res.data.filter((a) => ids.has(a.relatedId) || (a.source === 'manual' && a.links?.companyId === company.id)).sort((a, b) => new Date(b.date) - new Date(a.date)))
       })
     })
   }, [company])
@@ -116,6 +121,7 @@ export default function CompanyDetail() {
     { value: 'leads', label: 'Leads', count: leads.length },
     { value: 'contacts', label: 'Contacts', count: contacts.length },
     { value: 'deals', label: 'Deals', count: deals.length },
+    { value: 'quotations', label: 'Quotations', count: quotations.length },
     { value: 'projects', label: 'Projects', count: projects.length },
     { value: 'invoices', label: 'Invoices', count: invoices.length },
     { value: 'payments', label: 'Payments', count: payments.length },
@@ -132,6 +138,8 @@ export default function CompanyDetail() {
         description={company.industry}
         actions={
           <>
+            <RecordTasksButton type="Company" id={company.id} label={company.name} />
+            <Button variant="secondary" icon={FileText} onClick={() => navigate(`/quotations?companyId=${company.id}`)}>Create Quotation</Button>
             <Button variant="secondary" icon={Pencil} onClick={() => setEditOpen(true)}>Edit</Button>
             <Button variant="danger" icon={Trash2} onClick={() => setDeleteOpen(true)}>Delete</Button>
           </>
@@ -177,9 +185,20 @@ export default function CompanyDetail() {
               <div className="flex justify-between"><dt className="text-ink-500 dark:text-ink-400">Industry</dt><dd className="font-medium text-ink-800 dark:text-ink-100">{company.industry}</dd></div>
               <div className="flex justify-between"><dt className="text-ink-500 dark:text-ink-400">City</dt><dd className="font-medium text-ink-800 dark:text-ink-100">{company.city}</dd></div>
               <div className="flex justify-between"><dt className="text-ink-500 dark:text-ink-400">Status</dt><dd><StatusBadge status={company.status} /></dd></div>
+              <div className="flex justify-between"><dt className="text-ink-500 dark:text-ink-400">GSTIN</dt><dd className="font-medium text-ink-800 dark:text-ink-100">{company.gstin || '—'}</dd></div>
               <div className="flex justify-between"><dt className="text-ink-500 dark:text-ink-400">Customer Since</dt><dd className="font-medium text-ink-800 dark:text-ink-100">{customer ? formatDate(customer.since) : '—'}</dd></div>
               <div className="flex justify-between"><dt className="text-ink-500 dark:text-ink-400">Created</dt><dd className="font-medium text-ink-800 dark:text-ink-100">{formatDate(company.createdDate)}</dd></div>
             </dl>
+            <div className="mt-4 grid grid-cols-1 gap-3 border-t border-ink-100 pt-4 dark:border-ink-800 sm:grid-cols-2">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink-400">Billing Address</p>
+                <p className="mt-1 whitespace-pre-line text-sm text-ink-600 dark:text-ink-300">{company.billingAddress || company.address || '—'}</p>
+              </div>
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-ink-400">Shipping Address</p>
+                <p className="mt-1 whitespace-pre-line text-sm text-ink-600 dark:text-ink-300">{company.shippingAddress || company.address || '—'}</p>
+              </div>
+            </div>
             {company.tags?.length > 0 && (
               <div className="mt-4 flex flex-wrap gap-1.5">
                 {company.tags.map((t) => <span key={t} className="rounded-full bg-ink-100 px-2.5 py-1 text-xs font-medium text-ink-600 dark:bg-ink-800 dark:text-ink-300">{t}</span>)}
@@ -284,6 +303,32 @@ export default function CompanyDetail() {
                       <td className="px-4 py-3 text-ink-600 dark:text-ink-300">{formatCurrency(d.value)}</td>
                       <td className="px-4 py-3"><StatusBadge status={d.stage} /></td>
                       <td className="px-4 py-3 text-ink-600 dark:text-ink-300">{formatDate(d.expectedClosingDate)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )
+      )}
+
+      {tab === 'quotations' && (
+        quotations.length === 0 ? <EmptyState title="No quotations yet" description="No quotations have been created for this company." /> : (
+          <div className="overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-card dark:border-ink-800 dark:bg-ink-900">
+            <div className="scrollbar-thin overflow-x-auto">
+              <table className="w-full min-w-[600px] text-sm">
+                <thead>
+                  <tr className="border-b border-ink-100 bg-ink-50/60 text-left text-xs font-semibold uppercase text-ink-500 dark:border-ink-800 dark:bg-ink-800/40 dark:text-ink-400">
+                    <th className="px-4 py-3">Quotation #</th><th className="px-4 py-3">Amount</th><th className="px-4 py-3">Valid Until</th><th className="px-4 py-3">Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {quotations.map((q) => (
+                    <tr key={q.id} className="cursor-pointer border-b border-ink-50 last:border-0 hover:bg-ink-50/60 dark:border-ink-800/60 dark:hover:bg-ink-800/40" onClick={() => navigate(`/quotations/${q.id}`)}>
+                      <td className="px-4 py-3 font-medium text-ink-800 dark:text-ink-100">{q.number}</td>
+                      <td className="px-4 py-3 text-ink-600 dark:text-ink-300">{formatCurrency(q.amount)}</td>
+                      <td className="px-4 py-3 text-ink-600 dark:text-ink-300">{formatDate(q.validUntil)}</td>
+                      <td className="px-4 py-3"><StatusBadge status={q.status} /></td>
                     </tr>
                   ))}
                 </tbody>
@@ -423,7 +468,10 @@ export default function CompanyDetail() {
           { name: 'city', label: 'City', type: 'select', options: CITIES.map((c) => ({ value: c, label: c })), required: true, span: 1 },
           { name: 'status', label: 'Status', type: 'select', options: COMPANY_STATUSES.map((s) => ({ value: s, label: s })), required: true, span: 1 },
           { name: 'revenue', label: 'Annual Revenue (₹)', type: 'number', span: 1 },
+          { name: 'gstin', label: 'GSTIN', span: 1 },
           { name: 'address', label: 'Address', span: 2 },
+          { name: 'billingAddress', label: 'Billing Address', type: 'textarea', span: 1 },
+          { name: 'shippingAddress', label: 'Shipping Address', type: 'textarea', span: 1 },
         ]}
       />
 

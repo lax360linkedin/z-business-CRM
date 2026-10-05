@@ -7,7 +7,7 @@ import {
 import {
   Users, UserPlus, Target, Handshake, Trophy, UserSquare2, FolderKanban, IndianRupee,
   Wallet, Clock, ArrowRight, Phone, Mail, Users2, Video, CalendarClock, PhoneCall,
-  Sprout, XCircle, Percent, AlertTriangle, Inbox, UserCog, ClipboardCheck, Ban,
+  Sprout, XCircle, Percent, AlertTriangle, Inbox, UserCog, ClipboardCheck, Ban, ClipboardList, Receipt, Truck,
 } from 'lucide-react'
 import { PageHeader } from '../../components/common/PageHeader'
 import { StatCard } from '../../components/common/StatCard'
@@ -76,6 +76,23 @@ export default function Dashboard() {
       { label: 'Monthly Revenue', value: formatCurrency(MONTHLY_PERFORMANCE.at(-1).revenue, { compact: true }), icon: IndianRupee, change: 9.4, tone: 'emerald' },
       { label: 'Pending Payments', value: formatCurrency(pendingPayments, { compact: true }), icon: Wallet, change: -4.3, tone: 'rose' },
       { label: 'Pending Follow-ups', value: pendingFollowUps, icon: Clock, change: 1.8, tone: 'amber' },
+    ]
+  }, [data])
+
+  // Order-to-cash KPIs, straight from the live Sales Order / Invoice records (same data the Sales
+  // Orders page shows), so a status change or new invoice is reflected here immediately.
+  const orderStats = useMemo(() => {
+    if (!data) return null
+    const orders = data.salesOrders || []
+    const open = orders.filter((o) => ['Draft', 'Confirmed', 'Processing', 'Partially Fulfilled'].includes(o.status))
+    const live = (id) => (data.invoices || []).find((i) => i.id === id && i.status !== 'Cancelled')
+    const toInvoice = orders.filter((o) => ['Confirmed', 'Processing', 'Partially Fulfilled', 'Fulfilled'].includes(o.status) && !live(o.invoiceId))
+    return [
+      { label: 'Open Sales Orders', value: open.length, icon: ClipboardList, tone: 'brand' },
+      { label: 'Open Order Value', value: formatCurrency(open.reduce((s, o) => s + (o.amount || 0), 0), { compact: true }), icon: IndianRupee, tone: 'violet' },
+      { label: 'In Fulfilment', value: orders.filter((o) => ['Processing', 'Partially Fulfilled'].includes(o.status)).length, icon: Truck, tone: 'amber' },
+      { label: 'Fulfilled Orders', value: orders.filter((o) => o.status === 'Fulfilled').length, icon: ClipboardCheck, tone: 'emerald' },
+      { label: 'Awaiting Invoice', value: toInvoice.length, icon: Receipt, tone: 'sky' },
     ]
   }, [data])
 
@@ -241,7 +258,7 @@ export default function Dashboard() {
   const upcoming = useMemo(() => {
     if (!data) return []
     const items = [
-      ...data.tasks.filter((t) => t.status === 'Pending').map((t) => ({ id: t.id, kind: 'Task', title: t.title, date: t.dueDate, priority: t.priority, sub: t.relatedName })),
+      ...data.tasks.filter((t) => ['To Do', 'In Progress', 'Waiting / On Hold', 'Reopened'].includes(t.status)).map((t) => ({ id: t.id, kind: 'Task', title: t.title, date: t.dueDate, priority: t.priority, sub: t.relatedName })),
       ...data.leads.filter((l) => l.nextFollowUp && !LEAD_TERMINAL_STATUSES.includes(l.status)).map((l) => ({ id: l.id, kind: 'Follow-up', title: `Follow up with ${l.name}`, date: l.nextFollowUp, priority: l.priority, sub: l.company })),
       ...data.enquiries.filter((e) => e.nextFollowUp && !['Converted', 'Duplicate', 'Spam'].includes(e.status)).map((e) => ({ id: e.id, kind: 'Follow-up', title: `Follow up with ${e.name}`, date: e.nextFollowUp, priority: e.priority, sub: e.company })),
     ]
@@ -285,6 +302,11 @@ export default function Dashboard() {
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
         {stats.map((s) => <StatCard key={s.label} {...s} />)}
+      </div>
+
+      <p className="mb-2.5 mt-6 text-xs font-semibold uppercase tracking-wide text-ink-400">Sales Orders</p>
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
+        {orderStats.map((s) => <StatCard key={s.label} {...s} onClick={() => navigate('/sales-orders')} />)}
       </div>
 
       <p className="mb-2.5 mt-6 text-xs font-semibold uppercase tracking-wide text-ink-400">Lead Status Overview</p>

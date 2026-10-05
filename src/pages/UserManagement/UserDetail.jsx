@@ -109,7 +109,7 @@ export default function UserDetail() {
   const [activities, setActivities] = useState([])
   useEffect(() => {
     if (!employee) return
-    api.get('/tasks', { params: { all: true } }).then((res) => setTasks(res.data.filter((t) => t.assignedTo === employee.id)))
+    api.get('/tasks', { params: { all: true } }).then((res) => setTasks(res.data.filter((t) => (t.assignees || [t.assignedTo]).includes(employee.id))))
     api.get('/activities', { params: { all: true } }).then((res) => setActivities(res.data.filter((a) => a.by === employee.id)))
   }, [employee?.id])
 

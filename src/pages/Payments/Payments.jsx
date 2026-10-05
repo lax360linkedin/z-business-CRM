@@ -59,6 +59,12 @@ export default function Payments() {
         </button>
       ),
     },
+    {
+      key: 'salesOrderNumber', header: 'Sales Order',
+      render: (row) => (row.salesOrderId ? (
+        <button onClick={(e) => { e.stopPropagation(); navigate(`/sales-orders/${row.salesOrderId}`) }} className="font-medium text-brand-600 hover:underline dark:text-brand-400">{row.salesOrderNumber || row.salesOrderId}</button>
+      ) : <span className="text-ink-400">—</span>),
+    },
     { key: 'customerName', header: 'Client', sortable: true },
     { key: 'amount', header: 'Amount', sortable: true, render: (row) => formatCurrency(row.amount) },
     { key: 'method', header: 'Payment Method' },

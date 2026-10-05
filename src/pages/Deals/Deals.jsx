@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
+import { productByName } from '../../utils/productRules'
+import { useProducts, useServiceOptions, useAllServiceNames } from '../../hooks/useProducts'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Trash2, LayoutGrid, Table2, IndianRupee, Scale, Trophy, XCircle } from 'lucide-react'
 import { PageHeader } from '../../components/common/PageHeader'
@@ -15,7 +17,7 @@ import { KanbanColumn } from '../../components/kanban/KanbanColumn'
 import { useCrud } from '../../hooks/useCrud'
 import { useToast } from '../../context/ToastContext'
 import { useAuth } from '../../context/AuthContext'
-import { DEAL_STAGES, DEAL_STAGE_PROBABILITY, CLOSED_DEAL_STAGES, SERVICES, PRIORITIES } from '../../data/constants'
+import { DEAL_STAGES, DEAL_STAGE_PROBABILITY, CLOSED_DEAL_STAGES, PRIORITIES } from '../../data/constants'
 import { salesUsers, getUserById, USERS } from '../../data/users'
 import { COMPANIES, getCompanyById } from '../../data/companies'
 import { getDataScope, matchesDataScope } from '../../data/dataScope'
@@ -34,6 +36,9 @@ export default function Deals() {
     pageSize: 10,
     filterFn: (row) => matchesDataScope(row, scope, user, 'salesperson', USERS),
   })
+  const { products } = useProducts()
+  const serviceNames = useServiceOptions()
+  const allServiceNames = useAllServiceNames()
   // Kanban is the default landing view for Deal Management — a pipeline board is the primary
   // way sales reps work a deal through its stages; Table remains one click away via the toggle.
   const [view, setView] = useState('kanban')
@@ -63,7 +68,7 @@ export default function Deals() {
     { key: 'stage', label: 'Stages', options: DEAL_STAGES.map((s) => ({ value: s, label: s })) },
     { key: 'salesperson', label: 'Salespeople', options: reps.map((r) => ({ value: r.id, label: r.name })) },
     { key: 'priority', label: 'Priorities', options: PRIORITIES.map((p) => ({ value: p, label: p })) },
-    { key: 'service', label: 'Services', options: SERVICES.map((s) => ({ value: s, label: s })) },
+    { key: 'service', label: 'Services', options: allServiceNames.map((s) => ({ value: s, label: s })) },
   ]
 
   const stats = useMemo(() => {
@@ -126,6 +131,7 @@ export default function Deals() {
       contactId: null,
       contactName: data.contactName || company?.contactPerson || '',
       service: data.service,
+      productId: productByName(products, data.service)?.id || null, // the catalog item, by ID
       requirement: '',
       customerNeed: '',
       budget: 0,
@@ -294,12 +300,12 @@ export default function Deals() {
         submitLabel="Create Deal"
         loading={saving}
         onSubmit={createDeal}
-        defaultValues={{ stage: 'Deal Created', priority: 'Medium', salesperson: reps[0]?.id, service: SERVICES[0], companyId: COMPANIES[0]?.id, expectedClosingDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10) }}
+        defaultValues={{ stage: 'Deal Created', priority: 'Medium', salesperson: reps[0]?.id, service: serviceNames[0] || '', companyId: COMPANIES[0]?.id, expectedClosingDate: new Date(Date.now() + 30 * 86400000).toISOString().slice(0, 10) }}
         fields={[
           { name: 'name', label: 'Deal name (optional)', span: 2, placeholder: 'Auto-generated if left blank' },
           { name: 'companyId', label: 'Company', type: 'select', options: COMPANIES.map((c) => ({ value: c.id, label: c.name })), required: true, span: 1 },
           { name: 'contactName', label: 'Contact', span: 1, placeholder: 'Contact person name' },
-          { name: 'service', label: 'Service', type: 'select', options: SERVICES.map((s) => ({ value: s, label: s })), required: true, span: 1 },
+          { name: 'service', label: 'Service', type: 'select', options: serviceNames.map((s) => ({ value: s, label: s })), required: true, span: 1 },
           { name: 'value', label: 'Deal value (₹)', type: 'number', required: true, span: 1 },
           { name: 'expectedClosingDate', label: 'Expected closing date', type: 'date', required: true, span: 1 },
           { name: 'salesperson', label: 'Salesperson', type: 'select', options: reps.map((r) => ({ value: r.id, label: r.name })), required: true, span: 1 },

@@ -1,21 +1,29 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
+import { LogActivityButton } from '../Activities/LogActivityButton'
+import { RecordTasksButton } from '../Tasks/RecordTasksButton'
+import { belongsTo } from '../../utils/activityLinks'
 import { useNavigate, useParams } from 'react-router-dom'
-import { Printer, Download, ArrowLeft, CheckCircle2, XCircle, Send, Clock, ClipboardCheck, Target, Handshake } from 'lucide-react'
+import {
+  Printer, Download, ArrowLeft, CheckCircle2, XCircle, Send, Clock, ClipboardCheck, Target,
+  Handshake, Eye, Building2, User, Inbox, Users, FileSignature,
+} from 'lucide-react'
 import { Breadcrumbs } from '../../components/common/Breadcrumbs'
 import { Button } from '../../components/common/Button'
 import { StatusBadge } from '../../components/common/Badge'
 import { CardSkeleton } from '../../components/common/LoadingSkeleton'
 import { EmptyState } from '../../components/common/EmptyState'
+import { Modal } from '../../components/common/Modal'
 import { Logo } from '../../components/common/Logo'
 import { api } from '../../api/mockServer'
 import { useToast } from '../../context/ToastContext'
 import { useAuth } from '../../context/AuthContext'
-import { getCustomerById } from '../../data/customers'
 import { getUserById } from '../../data/users'
 import { formatCurrency, formatDate } from '../../utils/format'
 import { logAuditEvent } from '../../utils/auditLog'
-import { genId } from '../../utils/csv'
-import { createNotification } from '../../utils/notify'
+import { buildQuotationPdf, pdfBytesToBlobUrl } from './quotationPdf'
+import { logQuotationActivity } from './quotationActions'
+import { ActivityTimeline } from '../../components/common/ActivityTimeline'
+import { QuotationAttachmentCard, SendQuotationModal } from './QuotationAttachmentUI'
 
 // Roles with approval authority per the RBAC spec (Sales Manager approves team quotations;
 // Admin/Super Admin/MD can approve anything). Kept as a direct role check here rather than
@@ -33,23 +41,61 @@ const NEXT_STATUS = {
   Expired: [],
 }
 
+function RecordChip({ icon: Icon, label, onClick }) {
+  return (
+    <button onClick={onClick} className="inline-flex items-center gap-1.5 rounded-lg border border-ink-200 px-2.5 py-1.5 text-xs font-medium text-ink-600 hover:border-brand-400 hover:text-brand-600 dark:border-ink-700 dark:text-ink-300">
+      <Icon size={13} /> {label}
+    </button>
+  )
+}
+
 export default function QuotationDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [quotation, setQuotation] = useState(null)
+  const [company, setCompany] = useState(null)
+  const [contact, setContact] = useState(null)
+  const [lead, setLead] = useState(null)
+  const [enquiry, setEnquiry] = useState(null)
+  const [customer, setCustomer] = useState(null)
+  const [template, setTemplate] = useState(null)
   const [loading, setLoading] = useState(true)
   const [updating, setUpdating] = useState(false)
-  const [converting, setConverting] = useState(false)
+  const [generating, setGenerating] = useState(false)
+  const [previewUrl, setPreviewUrl] = useState(null)
+  const [activities, setActivities] = useState([])
+  const [sendOpen, setSendOpen] = useState(false)
   const { toast } = useToast()
-  const { user } = useAuth()
+  const { user, hasPermission } = useAuth()
   const canApprove = APPROVER_ROLES.includes(user?.role)
+  const iframeRef = useRef(null)
 
   const load = () => {
     setLoading(true)
     api.get(`/quotations/${id}`).then((res) => setQuotation(res.data)).catch(() => setQuotation(null)).finally(() => setLoading(false))
   }
 
-  useEffect(() => { load() }, [id])
+  const loadActivities = () => api.get('/activities', { params: { all: true } }).then((res) => {
+    setActivities(res.data.filter((a) => belongsTo(a, 'Quotation', id)).sort((a, b) => new Date(b.date) - new Date(a.date)))
+  })
+
+  useEffect(() => { load(); loadActivities() }, [id])
+
+  // Related-record lookups — all live (never a frozen static import), so a Company/Contact/
+  // Lead/Enquiry/Customer created moments ago in this session always resolves correctly.
+  useEffect(() => {
+    if (!quotation) return
+    Promise.all([
+      quotation.companyId ? api.get(`/companies/${quotation.companyId}`).then((r) => r.data).catch(() => null) : Promise.resolve(null),
+      quotation.contactId ? api.get(`/contacts/${quotation.contactId}`).then((r) => r.data).catch(() => null) : Promise.resolve(null),
+      quotation.leadId ? api.get(`/leads/${quotation.leadId}`).then((r) => r.data).catch(() => null) : Promise.resolve(null),
+      quotation.sourceEnquiryId ? api.get(`/enquiries/${quotation.sourceEnquiryId}`).then((r) => r.data).catch(() => null) : Promise.resolve(null),
+      quotation.customerId ? api.get(`/customers/${quotation.customerId}`).then((r) => r.data).catch(() => null) : Promise.resolve(null),
+      quotation.templateId ? api.get(`/quotationTemplates/${quotation.templateId}`).then((r) => r.data).catch(() => null) : Promise.resolve(null),
+    ]).then(([comp, cont, l, e, cust, tpl]) => {
+      setCompany(comp); setContact(cont); setLead(l); setEnquiry(e); setCustomer(cust); setTemplate(tpl)
+    })
+  }, [quotation])
 
   const transition = (status, auditAction) => {
     setUpdating(true)
@@ -62,47 +108,13 @@ export default function QuotationDetail() {
         user, action: auditAction || 'Update Quotation Status', module: 'Quotations',
         record: quotation.number, previousValue: previousStatus, newValue: status,
       })
+      logQuotationActivity({ type: 'StatusChange', relatedId: quotation.id, relatedName: quotation.number, subject: `Status changed from ${previousStatus} to ${status}`, fromStatus: previousStatus, toStatus: status, by: user.id }).then(loadActivities)
     })
   }
 
-  // Accepted → Sales Order — the missing link the spec calls out between Quotation and
-  // Invoice. Inherits customer/items/pricing/source straight from the Quotation (never
-  // re-entered) and carries the Lead/Deal chain forward so the Sales Order and everything
-  // created from it (the Invoice) stay traceable back to the original Lead Source.
-  const convertToSalesOrder = () => {
-    setConverting(true)
-    const soId = genId('SO')
-    api.post('/salesOrders', {
-      id: soId,
-      number: `SO-2026-${soId.split('-').pop()}`,
-      quotationId: quotation.id,
-      quotationNumber: quotation.number,
-      dealId: quotation.dealId,
-      leadId: quotation.leadId,
-      customerId: quotation.customerId,
-      customerName: quotation.customerName,
-      source: quotation.source,
-      sourceDetail: quotation.sourceDetail,
-      items: quotation.items,
-      subtotal: quotation.subtotal,
-      tax: quotation.tax,
-      amount: quotation.amount,
-      status: 'Pending',
-      salesperson: quotation.assignedTo,
-      createdDate: new Date().toISOString().slice(0, 10),
-      expectedDeliveryDate: new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10),
-      invoiceId: null,
-    }).then((soRes) => {
-      return api.put(`/quotations/${id}`, { salesOrderId: soRes.data.id }).then((qRes) => {
-        setQuotation(qRes.data)
-        setConverting(false)
-        toast(`Sales Order ${soRes.data.number} created from ${quotation.number}.`, { type: 'success' })
-        createNotification({ type: 'Sales Order Created', message: `Sales Order ${soRes.data.number} created for ${quotation.customerName}.`, relatedType: 'Sales Order', relatedId: soRes.data.id })
-        logAuditEvent({ user, action: 'Convert Quotation to Sales Order', module: 'Quotations', record: quotation.number, newValue: soRes.data.number })
-        navigate(`/sales-orders/${soRes.data.id}`)
-      })
-    })
-  }
+  // Accepted → Sales Order. The order is built and validated server-side from this quotation and its
+  // linked records; the user reviews/edits it on the Sales Order form before saving or confirming.
+  const convertToSalesOrder = () => navigate(`/sales-orders/new?quotationId=${quotation.id}`)
 
   const submitForApproval = () => transition('Pending Approval', 'Submit Quotation for Approval')
   const approveQuotation = () => transition('Sent', 'Approve Quotation')
@@ -117,6 +129,47 @@ export default function QuotationDetail() {
     })
   }
 
+  const preparedBy = getUserById(quotation?.assignedTo)
+
+  const generatePdf = () => buildQuotationPdf({ quotation, preparedByName: preparedBy?.name, template })
+
+  const doPreview = () => {
+    setGenerating(true)
+    generatePdf().then((bytes) => {
+      setPreviewUrl(pdfBytesToBlobUrl(bytes))
+      setGenerating(false)
+    }).catch(() => { toast('Could not generate the PDF preview.', { type: 'error' }); setGenerating(false) })
+  }
+
+  const doDownload = () => {
+    setGenerating(true)
+    generatePdf().then((bytes) => {
+      const url = pdfBytesToBlobUrl(bytes)
+      const link = document.createElement('a')
+      link.href = url
+      link.setAttribute('download', `${quotation.number}.pdf`)
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      setTimeout(() => URL.revokeObjectURL(url), 10000)
+      setGenerating(false)
+      logAuditEvent({ user, action: 'Download Quotation PDF', module: 'Quotations', record: quotation.number })
+    }).catch(() => { toast('Could not generate the PDF.', { type: 'error' }); setGenerating(false) })
+  }
+
+  const doPrint = () => {
+    setGenerating(true)
+    generatePdf().then((bytes) => {
+      const url = pdfBytesToBlobUrl(bytes)
+      const win = window.open(url, '_blank')
+      setGenerating(false)
+      if (!win) toast('Your browser blocked the print preview — allow pop-ups for this site and try again.', { type: 'warning' })
+      else toast('Opened in a new tab — use your browser\'s Print option there.', { type: 'info' })
+    }).catch(() => { toast('Could not generate the PDF.', { type: 'error' }); setGenerating(false) })
+  }
+
+  const doSend = () => setSendOpen(true)
+
   if (loading) {
     return (
       <div>
@@ -129,8 +182,6 @@ export default function QuotationDetail() {
     return <EmptyState title="Quotation not found" description="This quotation may have been deleted." action={<Button onClick={() => navigate('/quotations')}>Back to Quotations</Button>} />
   }
 
-  const customer = getCustomerById(quotation.customerId)
-  const preparedBy = getUserById(quotation.assignedTo)
   const nextOptions = NEXT_STATUS[quotation.status] || []
 
   return (
@@ -142,8 +193,12 @@ export default function QuotationDetail() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="secondary" icon={ArrowLeft} onClick={() => navigate('/quotations')}>Back</Button>
-          <Button variant="secondary" icon={Printer} onClick={() => window.print()}>Print</Button>
-          <Button variant="secondary" icon={Download} onClick={() => toast('PDF export coming soon.', { type: 'info' })}>Download PDF</Button>
+          <Button variant="secondary" icon={Eye} loading={generating} onClick={doPreview}>Preview</Button>
+          <Button variant="secondary" icon={Download} loading={generating} onClick={doDownload}>Download PDF</Button>
+          <Button variant="secondary" icon={Printer} loading={generating} onClick={doPrint}>Print</Button>
+          <Button variant="secondary" icon={Send} onClick={doSend}>Send</Button>
+          <LogActivityButton type="Quotation" id={quotation.id} label={`${quotation.number} · ${quotation.customerName}`} onLogged={loadActivities} />
+          <RecordTasksButton type="Quotation" id={quotation.id} label={`${quotation.number} · ${quotation.customerName}`} />
         </div>
       </div>
 
@@ -170,8 +225,8 @@ export default function QuotationDetail() {
               Mark as {status}
             </Button>
           ))}
-          {quotation.status === 'Accepted' && !quotation.salesOrderId && (
-            <Button size="sm" icon={ClipboardCheck} loading={converting} onClick={convertToSalesOrder}>Convert to Sales Order</Button>
+          {quotation.status === 'Accepted' && !quotation.salesOrderId && hasPermission('Sales Orders', 'create') && (
+            <Button size="sm" icon={ClipboardCheck} onClick={convertToSalesOrder}>Create Sales Order</Button>
           )}
           {quotation.salesOrderId && (
             <Button variant="secondary" size="sm" icon={ClipboardCheck} onClick={() => navigate(`/sales-orders/${quotation.salesOrderId}`)}>View Sales Order</Button>
@@ -180,16 +235,22 @@ export default function QuotationDetail() {
         </div>
       </div>
 
-      {quotation.source && (
-        <div className="mb-6 flex flex-wrap items-center gap-3 rounded-2xl border border-brand-200 bg-brand-50 px-4 py-3 dark:border-brand-800/50 dark:bg-brand-900/20 print:hidden">
-          <div className="flex items-center gap-2 text-sm text-brand-800 dark:text-brand-200">
-            <Target size={15} /> Original Lead Source: <span className="font-semibold">{quotation.source}</span>{quotation.sourceDetail ? ` — ${quotation.sourceDetail}` : ''}
-          </div>
-          {quotation.dealId && (
-            <Button variant="secondary" size="sm" icon={Handshake} className="ml-auto" onClick={() => navigate(`/deals?open=${quotation.dealId}`)}>View Deal</Button>
-          )}
-        </div>
-      )}
+      <div className="mb-6 flex flex-wrap items-center gap-2 print:hidden">
+        {enquiry && <RecordChip icon={Inbox} label={`View Enquiry ${enquiry.id}`} onClick={() => navigate(`/enquiries/${enquiry.id}`)} />}
+        {lead && <RecordChip icon={Target} label={`View Lead ${lead.id}`} onClick={() => navigate(`/leads/${lead.id}`)} />}
+        {quotation.proposalId && <RecordChip icon={FileSignature} label={`View Proposal ${quotation.proposalNumber || ''}${quotation.proposalVersion ? ` (v${quotation.proposalVersion})` : ''}`} onClick={() => navigate(`/proposals/${quotation.proposalId}`)} />}
+        {quotation.dealId && <RecordChip icon={Handshake} label={`View Deal ${quotation.dealId}`} onClick={() => navigate(`/deals/${quotation.dealId}`)} />}
+        {company && <RecordChip icon={Building2} label="View Company" onClick={() => navigate(`/companies/${company.id}`)} />}
+        {contact && <RecordChip icon={User} label="View Contact" onClick={() => navigate(`/contacts/${contact.id}`)} />}
+        {customer && <RecordChip icon={Users} label="View Customer" onClick={() => navigate(`/customers/${customer.id}`)} />}
+      </div>
+
+      <QuotationAttachmentCard
+        quotation={quotation}
+        onQuotationChange={setQuotation}
+        onActivity={loadActivities}
+        onSendClick={() => setSendOpen(true)}
+      />
 
       <div className="rounded-2xl border border-ink-100 bg-white p-8 shadow-card dark:border-ink-800 dark:bg-ink-900 print:border-0 print:shadow-none">
         <div className="mb-8 flex flex-wrap items-start justify-between gap-6 border-b border-ink-100 pb-6 dark:border-ink-800">
@@ -205,29 +266,45 @@ export default function QuotationDetail() {
             <p className="mt-1 text-sm text-ink-500 dark:text-ink-400">{quotation.number}</p>
             <p className="text-xs text-ink-400">Created {formatDate(quotation.createdDate)}</p>
             <p className="text-xs text-ink-400">Valid until {formatDate(quotation.validUntil)}</p>
+            {template && <p className="mt-1 text-xs text-brand-500">Template: {template.name}</p>}
           </div>
         </div>
 
-        <div className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-2">
+        <div className="mb-8 grid grid-cols-1 gap-6 sm:grid-cols-3">
           <div>
             <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-400">Bill To</p>
             <p className="text-sm font-semibold text-ink-900 dark:text-ink-50">{quotation.customerName}</p>
-            {customer && (
-              <div className="mt-1 space-y-0.5 text-sm text-ink-500 dark:text-ink-400">
-                <p>{customer.contactPerson}</p>
-                <p>{customer.email}</p>
-                <p>{customer.phone}</p>
-                <p>{customer.industry}</p>
-              </div>
+            <div className="mt-1 space-y-0.5 text-sm text-ink-500 dark:text-ink-400">
+              {quotation.contactName && <p>{quotation.contactName}</p>}
+              {quotation.contactEmail && <p>{quotation.contactEmail}</p>}
+              {quotation.contactPhone && <p>{quotation.contactPhone}</p>}
+              {quotation.gstin && <p>GSTIN: {quotation.gstin}</p>}
+            </div>
+          </div>
+          <div>
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-400">Billing Address</p>
+            <p className="whitespace-pre-line text-sm text-ink-600 dark:text-ink-300">{quotation.billingAddress || '—'}</p>
+            {quotation.shippingAddress && quotation.shippingAddress !== quotation.billingAddress && (
+              <>
+                <p className="mb-1.5 mt-3 text-xs font-semibold uppercase tracking-wide text-ink-400">Shipping Address</p>
+                <p className="whitespace-pre-line text-sm text-ink-600 dark:text-ink-300">{quotation.shippingAddress}</p>
+              </>
             )}
           </div>
           <div className="sm:text-right">
-            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-400">Prepared By</p>
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-400">Quotation Owner</p>
             <p className="text-sm font-semibold text-ink-900 dark:text-ink-50">{preparedBy?.name || '—'}</p>
             <p className="text-sm text-ink-500 dark:text-ink-400">{preparedBy?.email}</p>
             {quotation.dealId && <p className="mt-1 text-xs text-ink-400">Related Deal: {quotation.dealId}</p>}
           </div>
         </div>
+
+        {quotation.requirement && (
+          <div className="mb-8">
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-400">Requirement / Scope of Work</p>
+            <p className="text-sm text-ink-600 dark:text-ink-300">{quotation.requirement}</p>
+          </div>
+        )}
 
         <div className="mb-8 overflow-hidden rounded-xl border border-ink-100 dark:border-ink-800">
           <table className="w-full text-sm">
@@ -268,11 +345,42 @@ export default function QuotationDetail() {
           </div>
         </div>
 
-        <div>
-          <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-400">Terms & Conditions</p>
-          <p className="text-sm text-ink-600 dark:text-ink-300">{quotation.terms}</p>
+        <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
+          {quotation.paymentTerms && (
+            <div>
+              <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-400">Payment Terms</p>
+              <p className="text-sm text-ink-600 dark:text-ink-300">{quotation.paymentTerms}</p>
+            </div>
+          )}
+          <div>
+            <p className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-ink-400">Terms & Conditions</p>
+            <p className="text-sm text-ink-600 dark:text-ink-300">{quotation.terms}</p>
+          </div>
         </div>
       </div>
+
+      <div className="mt-6 rounded-2xl border border-ink-100 bg-white p-5 dark:border-ink-800 dark:bg-ink-900 print:hidden" data-testid="quotation-activity">
+        <h3 className="mb-4 text-sm font-semibold text-ink-800 dark:text-ink-100">Activity Timeline</h3>
+        <ActivityTimeline items={activities} />
+      </div>
+
+      <SendQuotationModal
+        open={sendOpen}
+        onClose={() => setSendOpen(false)}
+        quotation={quotation}
+        preparedByName={preparedBy?.name}
+        onSent={(q) => { setQuotation(q); loadActivities() }}
+      />
+
+      <Modal
+        open={!!previewUrl}
+        onClose={() => { if (previewUrl) URL.revokeObjectURL(previewUrl); setPreviewUrl(null) }}
+        title={`${quotation.number} — PDF Preview`}
+        size="xl"
+        footer={<Button variant="secondary" icon={Printer} onClick={() => iframeRef.current?.contentWindow?.print()}>Print</Button>}
+      >
+        {previewUrl && <iframe ref={iframeRef} src={previewUrl} title="Quotation PDF preview" className="h-[70vh] w-full rounded-lg border border-ink-100 dark:border-ink-800" />}
+      </Modal>
     </div>
   )
 }

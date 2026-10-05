@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   UserPlus, UserCheck, Clock, ListChecks, Handshake, FileCheck2, IndianRupee,
   AlertTriangle, FolderKanban, LifeBuoy, Bell, CheckCheck,
@@ -10,6 +11,7 @@ import { TableSkeleton } from '../../components/common/LoadingSkeleton'
 import { useCrud } from '../../hooks/useCrud'
 import { NOTIFICATION_TYPES } from '../../data/constants'
 import { timeAgo } from '../../utils/format'
+import { relatedHref } from '../../utils/activityRules'
 
 const ICONS = {
   UserPlus, UserCheck, Clock, ListChecks, Handshake, FileCheck2, IndianRupee,
@@ -33,9 +35,15 @@ const TONE_BY_TYPE = {
   'Enquiry Converted': 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400',
   'Enquiry Closed': 'bg-ink-100 text-ink-500 dark:bg-ink-800 dark:text-ink-400',
   'High Priority Enquiry': 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400',
+  'Task Assigned': 'bg-sky-50 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400',
+  'Task Overdue': 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400',
+  'Task Mention': 'bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400',
+  'Task Completed': 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400',
+  'Task Comment': 'bg-brand-50 text-brand-600 dark:bg-brand-900/30 dark:text-brand-400',
 }
 
 export default function Notifications() {
+  const navigate = useNavigate()
   const crud = useCrud('notifications', { searchFields: ['message', 'type'], pageSize: 15 })
   const [typeFilter, setTypeFilter] = useState('all')
   const [readFilter, setReadFilter] = useState('all')
@@ -104,7 +112,7 @@ export default function Notifications() {
               return (
                 <button
                   key={n.id}
-                  onClick={() => !n.read && crud.update(n.id, { read: true })}
+                  onClick={() => { if (!n.read) crud.update(n.id, { read: true }); const href = n.relatedType === 'Task' ? `/tasks/${n.relatedId}` : relatedHref(n.relatedType, n.relatedId); if (n.relatedId && href) navigate(href) }}
                   className={`flex w-full items-start gap-3.5 px-5 py-4 text-left transition-colors hover:bg-ink-50 dark:hover:bg-ink-800/50 ${!n.read ? 'bg-brand-50/40 dark:bg-brand-900/10' : ''}`}
                 >
                   <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${TONE_BY_TYPE[n.type] || 'bg-ink-100 text-ink-500 dark:bg-ink-800 dark:text-ink-400'}`}>

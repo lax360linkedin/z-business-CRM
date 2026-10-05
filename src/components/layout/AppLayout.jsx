@@ -9,6 +9,7 @@ import { useAuth } from '../../context/AuthContext'
 import { getModuleForPath } from '../../routes/moduleAccess'
 import { logAuditEvent } from '../../utils/auditLog'
 import { useFollowUpReminders } from '../../hooks/useFollowUpReminders'
+import { useTaskEngine } from '../../hooks/useTaskEngine'
 import AccessDenied from '../../pages/AccessDenied/AccessDenied'
 
 export function AppLayout() {
@@ -22,6 +23,7 @@ export function AppLayout() {
   // Runs once per app load (not per navigation) — see the hook for why this is the honest
   // frontend-only substitute for a real due-follow-up cron job.
   useFollowUpReminders(isAuthenticated)
+  useTaskEngine(isAuthenticated)
 
   // Permission Validation: even direct URL entry into a module the role can't view is
   // blocked here and logged, matching the spec's "Sales Executive typing the URL directly"

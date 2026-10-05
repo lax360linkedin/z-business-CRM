@@ -2,6 +2,7 @@ import { api } from '../../api/mockServer'
 import { genId } from '../../utils/csv'
 import { createNotification } from '../../utils/notify'
 import { canTransition, isDealClosed, isDealLost, probabilityForStage } from '../../data/dealWorkflow'
+import { resolveSourceFromDeal, createQuotation } from '../Quotations/quotationActions'
 
 /**
  * Thin, shared wrapper so every Deal action logs to /activities in the exact same shape as
@@ -135,6 +136,9 @@ export function convertDealToCustomer(deal, { by, update }) {
             contactPerson: contact.name,
             email: company.email,
             phone: company.phone,
+            gstin: company.gstin || '',
+            billingAddress: company.billingAddress || company.address || '',
+            shippingAddress: company.shippingAddress || company.address || '',
             accountManager: deal.salesperson,
             since: new Date().toISOString().slice(0, 10),
             status: 'Active',
@@ -166,42 +170,20 @@ export function convertDealToCustomer(deal, { by, update }) {
   })
 }
 
-/** Live existing-customer lookup for a Deal's company — never the frozen static CUSTOMERS import, so a customer created moments ago in this session (e.g. from converting the source Lead) is always found instead of triggering a duplicate create downstream. */
-export function findCustomerForDeal(deal) {
-  return api.get('/customers', { params: { all: true } }).then((res) => res.data.find((c) => c.companyId === deal.companyId) || null)
-}
-
 /**
- * Create Quotation from Deal (spec §12) — reuses the existing Customer/Contact/Company (never
- * duplicates), carries dealId/leadId/source/sourceDetail forward, and — unlike the drawer this
- * replaced — actually stores the new Quotation's id back onto the Deal's own quotationIds list
- * and logs a Deal-timeline activity, so "Deal Detail should show Quotation number/status/value/
- * date" has something real to read from.
+ * Create Quotation from Deal (spec §12) — resolves the Deal's actual linked Company/Contact/
+ * Customer (never duplicates, never guesses — see resolveSourceFromDeal in
+ * src/pages/Quotations/quotationActions.js), seeds a real line item from the Deal's own
+ * service/value so the quotation's totals are never internally inconsistent, carries the full
+ * Enquiry→Lead→Deal chain forward, and — unlike the drawer this replaced — actually stores the
+ * new Quotation's id back onto the Deal's own quotationIds list and logs a Deal-timeline
+ * activity, so "Deal Detail should show Quotation number/status/value/date" has something real
+ * to read from.
  */
 export function createQuotationFromDeal(deal, { by, update }) {
-  return findCustomerForDeal(deal).then((customer) => {
-    const id = genId('QT')
-    return api.post('/quotations', {
-      id,
-      number: `QUO-${new Date().getFullYear()}-${id.split('-').pop()}`,
-      customerId: customer?.id ?? deal.customerId ?? null,
-      customerName: customer?.name ?? deal.companyName,
-      dealId: deal.id,
-      leadId: deal.leadId,
-      source: deal.source,
-      sourceDetail: deal.sourceDetail,
-      items: [],
-      subtotal: 0,
-      tax: 0,
-      amount: deal.value || 0,
-      status: 'Draft',
-      assignedTo: deal.salesperson,
-      createdDate: new Date().toISOString().slice(0, 10),
-      validUntil: new Date(Date.now() + 15 * 86400000).toISOString().slice(0, 10),
-      terms: 'Payment due within 15 days of acceptance. Prices are exclusive of applicable taxes unless noted. Quotation valid until the date specified above.',
-    }).then((res) => {
-      const quotation = res.data
-      return update(deal.id, { quotationIds: [...(deal.quotationIds || []), quotation.id] }).then(() => {
+  return resolveSourceFromDeal(deal).then((payload) =>
+    createQuotation(payload, { by }).then((quotation) =>
+      update(deal.id, { quotationIds: [...(deal.quotationIds || []), quotation.id] }).then(() => {
         logDealActivity({
           type: 'Quotation',
           relatedId: deal.id,
@@ -209,9 +191,8 @@ export function createQuotationFromDeal(deal, { by, update }) {
           subject: `Quotation ${quotation.number} created`,
           by,
         })
-        createNotification({ type: 'Quotation Created', message: `A quotation was created for ${deal.companyName}.`, relatedType: 'Quotation', relatedId: quotation.id })
         return quotation
-      })
-    })
-  })
+      }),
+    ),
+  )
 }

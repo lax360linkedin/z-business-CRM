@@ -1,8 +1,11 @@
 import { useEffect, useState } from 'react'
+import { LogActivityButton } from '../Activities/LogActivityButton'
+import { RecordTasksButton } from '../Tasks/RecordTasksButton'
+import { belongsTo } from '../../utils/activityLinks'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, Phone, Mail, MessageCircle, StickyNote, CalendarClock, Building2, Briefcase,
-  Pencil, Video, Handshake, FolderKanban, UserSquare2, Inbox,
+  Pencil, Video, Handshake, FolderKanban, UserSquare2, Inbox, FileText,
 } from 'lucide-react'
 import { Breadcrumbs } from '../../components/common/Breadcrumbs'
 import { Badge, StatusBadge } from '../../components/common/Badge'
@@ -67,6 +70,7 @@ export default function ContactDetail() {
   const [contact, setContact] = useState(null)
   const [activities, setActivities] = useState([])
   const [relatedLeads, setRelatedLeads] = useState([])
+  const [quotations, setQuotations] = useState([])
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
 
@@ -84,18 +88,21 @@ export default function ContactDetail() {
   // is still open, e.g. MeetingSchedulerModal's share screen).
   const load = () => api.get(`/contacts/${id}`).then((res) => setContact(res.data)).catch(() => setContact(null))
   const loadActivities = () => api.get('/activities', { params: { all: true } }).then((res) => {
-    setActivities(res.data.filter((a) => a.relatedType === 'Contact' && a.relatedId === id).sort((a, b) => new Date(b.date) - new Date(a.date)))
+    setActivities(res.data.filter((a) => belongsTo(a, 'Contact', id)).sort((a, b) => new Date(b.date) - new Date(a.date)))
   })
   const loadRelatedLeads = () => api.get('/leads', { params: { all: true } }).then((res) => {
     setRelatedLeads(res.data.filter((l) => l.contactId === id))
   })
+  const loadQuotations = () => api.get('/quotations', { params: { all: true } }).then((res) => {
+    setQuotations(res.data.filter((q) => q.contactId === id))
+  })
   useEffect(() => {
     setLoading(true)
-    Promise.all([load(), loadActivities(), loadRelatedLeads()]).finally(() => setLoading(false))
+    Promise.all([load(), loadActivities(), loadRelatedLeads(), loadQuotations()]).finally(() => setLoading(false))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [id])
 
-  const refresh = () => { load(); loadActivities(); loadRelatedLeads() }
+  const refresh = () => { load(); loadActivities(); loadRelatedLeads(); loadQuotations() }
 
   if (loading) return <div><CardSkeleton className="h-40" /></div>
   if (!contact) return <EmptyState title="Contact not found" description="This contact may have been deleted." action={<Button onClick={() => navigate('/contacts')}>Back to Contacts</Button>} />
@@ -129,8 +136,11 @@ export default function ContactDetail() {
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Button variant="secondary" icon={ArrowLeft} onClick={() => navigate('/contacts')}>Back</Button>
+          <Button variant="secondary" icon={FileText} onClick={() => navigate(`/quotations?companyId=${contact.companyId}&contactId=${contact.id}`)}>Create Quotation</Button>
           {canEdit && <Button variant="secondary" icon={Pencil} onClick={() => setEditOpen(true)}>Edit</Button>}
           {canEdit && <Button variant="secondary" icon={CalendarClock} onClick={() => setFollowUpOpen(true)}>Add Follow-up</Button>}
+          {canEdit && <LogActivityButton type="Contact" id={contact.id} label={contact.name} onLogged={loadActivities} />}
+          <RecordTasksButton type="Contact" id={contact.id} label={contact.name} />
           {canEdit && <Button variant="secondary" icon={Video} onClick={() => setMeetingOpen(true)}>Schedule Meeting</Button>}
         </div>
       </div>
@@ -255,6 +265,22 @@ export default function ContactDetail() {
                     <span className="font-medium text-ink-700 dark:text-ink-200">{d.name}</span>
                     <span className="text-xs text-ink-500 dark:text-ink-400">{formatCurrency(d.value)}</span>
                   </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-ink-100 bg-white p-5 dark:border-ink-800 dark:bg-ink-900">
+            <p className="mb-2.5 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-ink-400"><FileText size={13} /> Related Quotations ({quotations.length})</p>
+            {quotations.length === 0 ? (
+              <p className="text-sm text-ink-400">No quotations addressed to this contact yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {quotations.map((q) => (
+                  <button key={q.id} onClick={() => navigate(`/quotations/${q.id}`)} className="flex w-full items-center justify-between rounded-lg border border-ink-100 px-3 py-2 text-left text-sm hover:border-brand-400 dark:border-ink-800">
+                    <span className="font-medium text-ink-700 dark:text-ink-200">{q.number}</span>
+                    <StatusBadge status={q.status} />
+                  </button>
                 ))}
               </div>
             )}

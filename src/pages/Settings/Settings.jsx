@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useProducts } from '../../hooks/useProducts'
 import { Routes, Route, Navigate, NavLink, Link } from 'react-router-dom'
 import {
   Building2, Users, ShieldCheck, Target, ListChecks, GitBranch, Package, Network,
-  Percent, Receipt, Bell, Mail, MessageCircle, Zap, Lock, History, Plus, X, Save, KeyRound, Palette,
+  Percent, Receipt, Bell, Mail, MessageCircle, Zap, Lock, History, Plus, X, Save, KeyRound, Palette, FileText,
 } from 'lucide-react'
 import { FormField, Input, Textarea, Select } from '../../components/common/FormField'
 import { Button } from '../../components/common/Button'
@@ -11,11 +12,12 @@ import { Badge, StatusBadge } from '../../components/common/Badge'
 import { DataTable } from '../../components/common/DataTable'
 import { Logo } from '../../components/common/Logo'
 import { useToast } from '../../context/ToastContext'
-import { LEAD_STATUSES, DEAL_STAGES, SERVICES, DEPARTMENTS, NOTIFICATION_TYPES, getEffectiveRoles } from '../../data/constants'
+import { LEAD_STATUSES, DEAL_STAGES, DEPARTMENTS, NOTIFICATION_TYPES, getEffectiveRoles } from '../../data/constants'
 import { USERS } from '../../data/users'
 import { generateLoginActivity } from '../../data/userAccounts'
 import { formatDateTime, timeAgo } from '../../utils/format'
 import { getAuditLog } from '../../utils/auditLog'
+import { getSecuritySettings, saveSecuritySettings, SESSION_TIMEOUT_PRESETS } from '../../utils/securitySettings'
 import { AppearancePanel } from './AppearancePanel'
 
 // `to` here is the bare route segment (also used as the matching nested <Route path="…">
@@ -40,6 +42,7 @@ const NAV = [
   { to: 'services', label: 'Services', icon: Package },
   { to: 'departments', label: 'Departments', icon: Network },
   { to: 'tax-settings', label: 'Tax Settings', icon: Percent },
+  { external: '/quotation-templates', label: 'Quotation Templates', icon: FileText },
   { to: 'invoice-settings', label: 'Invoice Settings', icon: Receipt },
   { to: 'notification-settings', label: 'Notification Settings', icon: Bell },
   { to: 'email-settings', label: 'Email Settings', icon: Mail },
@@ -89,6 +92,18 @@ function Toggle({ checked, onChange }) {
     >
       <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-5' : 'translate-x-0.5'}`} />
     </button>
+  )
+}
+
+/** The service list used to be a separate chip list that nothing read. Leads, deals, proposals, quotations and orders now all use the Products & Services catalog, so this points there. */
+function ServicesPanel() {
+  const { products } = useProducts()
+  const active = products.filter((p) => p.status !== 'Inactive').length
+  return (
+    <Panel title="Services" description="Services and offerings are managed in one place: Products & Services.">
+      <p className="text-sm text-ink-600 dark:text-ink-300">{active} active and {products.length - active} inactive items feed every product / service picker across leads, enquiries, deals, proposals, quotations, sales orders and invoices. Add, price, tax, activate or retire them in the catalog.</p>
+      <Link to="/products" className="mt-4 inline-flex h-9 items-center rounded-lg bg-brand-600 px-3.5 text-sm font-medium text-white hover:bg-brand-700">Open Products &amp; Services</Link>
+    </Panel>
   )
 }
 
@@ -298,26 +313,50 @@ function AutomationPanel() {
   )
 }
 
+// Session Timeout and Trusted Device Duration are real, enforced settings — read by
+// sessionStore.js on every session issuance / device-trust check (see src/utils/
+// securitySettings.js), not just toasted-and-forgotten like the password-policy fields below
+// (those aren't wired into the password-change validators anywhere in this app yet, so they
+// stay cosmetic here rather than claim an enforcement that doesn't exist).
 function SecurityPanel() {
   const { toast } = useToast()
-  const [form, setForm] = useState({ minLength: 8, requireSpecial: true, twoFactor: false, timeout: 30 })
+  const [security, setSecurity] = useState(getSecuritySettings)
+  const [form, setForm] = useState({ minLength: security.minPasswordLength, requireSpecial: security.requireSpecialChar })
+
+  const save = () => {
+    const next = saveSecuritySettings({
+      sessionTimeoutMinutes: Number(security.sessionTimeoutMinutes) || 60,
+      trustedDeviceDays: Number(security.trustedDeviceDays) || 30,
+      minPasswordLength: Number(form.minLength) || 8,
+      requireSpecialChar: form.requireSpecial,
+    })
+    setSecurity(next)
+    toast('Security settings saved. New sign-ins and trusted-device checks apply this immediately.', { type: 'success' })
+  }
+
   return (
-    <Panel title="Security" description="Password policy and session controls for your workspace.">
+    <Panel title="Security" description="Session duration, trusted-device policy, and password rules for your workspace.">
       <div className="grid gap-4 sm:grid-cols-2">
+        <FormField label="Session Timeout" hint="How long a user stays signed in after login before being automatically logged out.">
+          <Select value={security.sessionTimeoutMinutes} onChange={(e) => setSecurity((s) => ({ ...s, sessionTimeoutMinutes: Number(e.target.value) }))}>
+            {SESSION_TIMEOUT_PRESETS.map((p) => <option key={p.minutes} value={p.minutes}>{p.label}</option>)}
+          </Select>
+        </FormField>
+        <FormField label="Trusted Device Duration (days)" hint="How long a verified device skips two-step verification before it's asked again.">
+          <Input type="number" min="1" value={security.trustedDeviceDays} onChange={(e) => setSecurity((s) => ({ ...s, trustedDeviceDays: e.target.value }))} />
+        </FormField>
         <FormField label="Minimum Password Length"><Input type="number" value={form.minLength} onChange={(e) => setForm((f) => ({ ...f, minLength: e.target.value }))} /></FormField>
-        <FormField label="Session Timeout (minutes)"><Input type="number" value={form.timeout} onChange={(e) => setForm((f) => ({ ...f, timeout: e.target.value }))} /></FormField>
       </div>
       <div className="mt-4 space-y-2.5">
         <div className="flex items-center justify-between rounded-xl border border-ink-100 px-4 py-3 dark:border-ink-800">
           <p className="text-sm font-medium text-ink-800 dark:text-ink-100">Require a special character in passwords</p>
           <Toggle checked={form.requireSpecial} onChange={(v) => setForm((f) => ({ ...f, requireSpecial: v }))} />
         </div>
-        <div className="flex items-center justify-between rounded-xl border border-ink-100 px-4 py-3 dark:border-ink-800">
-          <p className="text-sm font-medium text-ink-800 dark:text-ink-100">Require two-factor authentication</p>
-          <Toggle checked={form.twoFactor} onChange={(v) => setForm((f) => ({ ...f, twoFactor: v }))} />
+        <div className="rounded-xl border border-ink-100 px-4 py-3 text-xs text-ink-500 dark:border-ink-800 dark:text-ink-400">
+          Two-step verification is required automatically on a user's first sign-in from a new or untrusted device. A revoked device, or one whose trust period has expired, is asked again; session expiry alone never triggers it.
         </div>
       </div>
-      <SaveBar onSave={() => toast('Security settings saved.', { type: 'success' })} />
+      <SaveBar onSave={save} />
     </Panel>
   )
 }
@@ -522,7 +561,7 @@ export default function Settings() {
             <Route path="users" element={<UsersPanel />} />
             <Route path="lead-statuses" element={<EditableChipList storageKey="business_crm_lead_statuses_v1" seed={LEAD_STATUSES} label="Lead Statuses" description="Statuses available when qualifying a lead." />} />
             <Route path="deal-stages" element={<EditableChipList storageKey="business_crm_deal_stages_v1" seed={DEAL_STAGES} label="Deal Stages" description="Stages shown on the Sales Pipeline board." />} />
-            <Route path="services" element={<EditableChipList storageKey="business_crm_services_v1" seed={SERVICES} label="Services" description="Services and offerings available across leads, deals and quotations." />} />
+            <Route path="services" element={<ServicesPanel />} />
             <Route path="departments" element={<EditableChipList storageKey="business_crm_departments_v1" seed={DEPARTMENTS} label="Departments" description="Departments used to organize your team." />} />
             <Route path="tax-settings" element={<TaxSettingsPanel />} />
             <Route path="invoice-settings" element={<InvoiceSettingsPanel />} />

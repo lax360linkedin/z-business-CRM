@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { useAllServiceNames } from '../../hooks/useProducts'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Plus, Download, Upload, Trash2, Eye, Pencil, UserCog, ClipboardCheck, Handshake,
@@ -17,7 +18,7 @@ import { ConfirmDialog } from '../../components/common/ConfirmDialog'
 import { useCrud } from '../../hooks/useCrud'
 import { useToast } from '../../context/ToastContext'
 import { useAuth } from '../../context/AuthContext'
-import { ENQUIRY_SOURCES, ENQUIRY_STATUSES, ENQUIRY_PRIORITIES, SERVICES, CITIES } from '../../data/constants'
+import { ENQUIRY_SOURCES, ENQUIRY_STATUSES, ENQUIRY_PRIORITIES, CITIES } from '../../data/constants'
 import { salesUsers, getUserById, USERS } from '../../data/users'
 import { getDataScope, matchesDataScope } from '../../data/dataScope'
 import { canTransition, isQualificationComplete } from '../../data/enquiryWorkflow'
@@ -63,6 +64,7 @@ export default function Enquiries() {
     pageSize: 10,
     filterFn: (row) => matchesDataScope(row, scope, user, 'assignedUser', USERS) && matchesAdvanced(row, advanced),
   })
+  const allServiceNames = useAllServiceNames()
   const [searchParams, setSearchParams] = useSearchParams()
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [advancedOpen, setAdvancedOpen] = useState(false)
@@ -111,7 +113,7 @@ export default function Enquiries() {
     { key: 'source', label: 'Sources', options: ENQUIRY_SOURCES.map((s) => ({ value: s, label: s })) },
     { key: 'priority', label: 'Priorities', options: ENQUIRY_PRIORITIES.map((p) => ({ value: p, label: p })) },
     { key: 'assignedUser', label: 'Assigned Users', options: reps.map((r) => ({ value: r.id, label: r.name })) },
-    { key: 'interestedService', label: 'Products/Services', options: SERVICES.map((s) => ({ value: s, label: s })) },
+    { key: 'interestedService', label: 'Products/Services', options: allServiceNames.map((s) => ({ value: s, label: s })) },
     { key: 'city', label: 'Locations', options: CITIES.map((c) => ({ value: c, label: c })) },
   ]
 

@@ -14,7 +14,7 @@ export const LEAD_STATUSES = ['New', 'Contacted', 'Qualified', 'Unqualified', 'L
 // src/pages/Leads/leadCaptureService.js for how a connected source actually produces a Lead.
 export const LEAD_SOURCE_TYPES = ['Digital', 'Offline', 'Integration']
 export const LEAD_CAPTURE_METHODS = ['API', 'Form', 'Webhook', 'Manual']
-export const SALES_ORDER_STATUSES = ['Pending', 'Confirmed', 'In Fulfillment', 'Delivered', 'Invoiced', 'Cancelled']
+export const SALES_ORDER_STATUSES = ['Draft', 'Confirmed', 'Processing', 'Partially Fulfilled', 'Fulfilled', 'Cancelled']
 export const LEAD_QUALIFICATION_TIMELINES = ['Immediate (0-1 month)', 'Short-term (1-3 months)', 'Mid-term (3-6 months)', 'Long-term (6+ months)']
 export const COMPANY_SIZES = ['1-10', '11-50', '51-200', '201-500', '500+']
 export const DECISION_MAKER_STATUSES = ['Yes', 'No', 'Partially']
@@ -101,14 +101,49 @@ export const ASSIGNED_TEAMS = ['Sales', 'Marketing', 'Support']
 export const PURCHASE_INTENT_LEVELS = ['Low', 'Medium', 'High', 'Very High']
 export const ENQUIRY_CLOSE_REASONS = ['Unqualified', 'Duplicate', 'Spam', 'Not Interested', 'Closed']
 export const QUOTATION_STATUSES = ['Draft', 'Pending Approval', 'Sent', 'Viewed', 'Negotiation', 'Accepted', 'Rejected', 'Expired']
-export const PROPOSAL_STATUSES = ['Draft', 'Sent', 'Viewed', 'Accepted', 'Rejected', 'Expired']
-export const TASK_STATUSES = ['Pending', 'In Progress', 'Completed', 'Cancelled']
+export const QUOTATION_SOURCE_TYPES = ['Deal', 'Lead', 'Company']
+export const PAYMENT_TERMS_PRESETS = [
+  '100% advance payment',
+  '50% advance, 50% on delivery',
+  '30% advance, 40% on delivery, 30% on completion',
+  'Net 15 days from invoice date',
+  'Net 30 days from invoice date',
+]
+export const DEFAULT_QUOTATION_TERMS = 'Payment due as per the agreed Payment Terms above. Prices are exclusive of applicable taxes unless noted otherwise. This quotation is valid only until the date specified above.'
+
+// The full set of CRM fields a quotation letterhead/template can be mapped to, in the Template
+// Editor — single source of truth shared by the field-mapping UI (src/pages/Settings/
+// QuotationTemplateEditor.jsx) and the PDF generator (src/pages/Quotations/quotationPdf.js).
+// `isRegion: true` fields are drag-to-resize rectangles (the table and totals block occupy real
+// space rather than a single text anchor); everything else is a single positioned text anchor.
+export const QUOTATION_TEMPLATE_FIELDS = [
+  { key: 'quotationNumber', label: 'Quotation Number', sample: 'QUO-2026-4231' },
+  { key: 'quotationDate', label: 'Quotation Date', sample: '01 Oct 2026' },
+  { key: 'validUntil', label: 'Valid Until', sample: '16 Oct 2026' },
+  { key: 'clientName', label: 'Client / Company Name', sample: 'Acme Technologies Pvt Ltd' },
+  { key: 'contactPerson', label: 'Contact Person Name', sample: 'Rohan Iyer' },
+  { key: 'phone', label: 'Phone Number', sample: '+91 98765 43210' },
+  { key: 'email', label: 'Email Address', sample: 'rohan@acmetech.com' },
+  { key: 'billingAddress', label: 'Billing Address', sample: '4th Floor, Tech Park Avenue, Bengaluru' },
+  { key: 'shippingAddress', label: 'Shipping Address', sample: 'Same as billing address' },
+  { key: 'gstin', label: 'GSTIN', sample: '29AACCL1234A1Z5' },
+  { key: 'dealId', label: 'Linked Deal ID', sample: 'DL-2003' },
+  { key: 'quotationOwner', label: 'Quotation Owner', sample: 'Karthik Subramaniam' },
+  { key: 'itemsTable', label: 'Products / Services Table', sample: '(line items)', isRegion: true },
+  { key: 'totals', label: 'Subtotal / Tax / Grand Total', sample: '(totals block)', isRegion: true },
+  { key: 'paymentTerms', label: 'Payment Terms', sample: '50% advance, 50% on delivery' },
+  { key: 'terms', label: 'Terms & Conditions', sample: '(terms & conditions text)' },
+]
+export const REQUIRED_TEMPLATE_FIELD_KEYS = ['clientName', 'itemsTable', 'totals']
+export const PROPOSAL_STATUSES = ['Draft', 'Internal Review', 'Sent', 'Viewed', 'Revision Requested', 'Accepted', 'Rejected', 'Expired']
+export const TASK_STATUSES = ['To Do', 'In Progress', 'Waiting / On Hold', 'Completed', 'Cancelled', 'Reopened'] // workflow lives in src/utils/taskRules.js
 export const CONTRACT_STATUSES = ['Draft', 'Active', 'Expiring Soon', 'Expired', 'Cancelled']
 export const INVOICE_STATUSES = ['Draft', 'Sent', 'Partially Paid', 'Paid', 'Overdue', 'Cancelled']
 export const TICKET_STATUSES = ['Open', 'Assigned', 'In Progress', 'Waiting', 'Resolved', 'Closed']
 export const PROJECT_STATUSES = ['Not Started', 'In Progress', 'On Hold', 'Delayed', 'Completed']
 export const PRIORITIES = ['Low', 'Medium', 'High', 'Urgent']
-export const ACTIVITY_TYPES = ['Call', 'Email', 'WhatsApp', 'Meeting', 'Demo', 'Follow-up', 'Note', 'Task']
+// The activity vocabulary lives in src/utils/activityRules.js (ACTIVITY_TYPE_DEFS); this is the plain name list.
+export const ACTIVITY_TYPES = ['Call', 'Email', 'WhatsApp', 'SMS', 'Meeting', 'Follow-up', 'Task', 'Demo / Presentation', 'Site Visit', 'Note', 'Proposal Sent', 'Quotation Sent', 'Quotation Accepted / Rejected', 'Deal Stage Changed', 'Status Changed', 'Document Uploaded', 'Payment Follow-up', 'Customer Interaction', 'Other / Custom Activity']
 export const CAMPAIGN_CHANNELS = ['Google Ads', 'Instagram', 'Facebook', 'LinkedIn', 'Email', 'WhatsApp', 'Website', 'YouTube', 'Other']
 export const CAMPAIGN_STATUSES = ['Planned', 'Active', 'Paused', 'Completed']
 export const DEPARTMENTS = ['Sales', 'Marketing', 'Projects', 'Finance', 'Support', 'Management', 'HR']
@@ -161,6 +196,7 @@ export const NOTIFICATION_TYPES = [
   'High Priority Enquiry', 'Lead Qualified', 'Opportunity Created', 'Quotation Created',
   'Sales Order Created', 'Deal Won', 'Deal Lost', 'First Contact', 'Follow-up Due', 'Follow-up Overdue',
   'Meeting Scheduled', 'Meeting Rescheduled', 'Meeting Cancelled',
+  'Meeting Reminder', 'Task Assigned', 'Task Overdue', 'Task Mention', 'Task Completed', 'Task Comment',
 ]
 
 export const STATUS_TONES = {
@@ -173,9 +209,9 @@ export const STATUS_TONES = {
   'Deal Created': 'info', 'Requirement Analysis': 'info',
   // amber
   Negotiation: 'warning', 'Proposal Sent': 'warning', Proposal: 'warning', Waiting: 'warning',
-  'Partially Paid': 'warning', 'Expiring Soon': 'warning', Contacted: 'warning', Pending: 'warning',
+  'Partially Paid': 'warning', 'Expiring Soon': 'warning', Contacted: 'warning', Pending: 'warning', 'To Do': 'neutral', 'Waiting / On Hold': 'warning', Reopened: 'info',
   'On Hold': 'warning', Planned: 'neutral', Delayed: 'warning', 'Pending Approval': 'warning',
-  'Under Review': 'warning', 'Solution Discussion': 'warning', 'Decision Maker Review': 'warning',
+  'Under Review': 'warning', 'Internal Review': 'warning', 'Revision Requested': 'warning', 'Solution Discussion': 'warning', 'Decision Maker Review': 'warning',
   'Proposal / Quotation': 'warning', 'Final Decision': 'warning',
   // red
   Lost: 'danger', Overdue: 'danger', Rejected: 'danger', Expired: 'danger', Cancelled: 'danger',
@@ -183,7 +219,7 @@ export const STATUS_TONES = {
   Duplicate: 'neutral', Spam: 'danger', 'Not Interested': 'danger', Unqualified: 'neutral',
   'Closed Lost': 'danger', 'Closed Lost – Competition': 'danger',
   // Sales Order
-  Confirmed: 'info', 'In Fulfillment': 'warning', Delivered: 'success', Invoiced: 'success',
+  Confirmed: 'info', Processing: 'warning', 'Partially Fulfilled': 'warning', Fulfilled: 'success', 'In Fulfillment': 'warning', Delivered: 'success', Invoiced: 'success',
   // Meeting lifecycle
   Scheduled: 'info', Rescheduled: 'warning', 'No Show': 'danger',
 }

@@ -1,298 +1,217 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import clsx from 'clsx'
-import { ChevronLeft, ChevronRight, Plus, Briefcase, Phone, CalendarClock } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, X, AlertTriangle, RefreshCw } from 'lucide-react'
 import { PageHeader } from '../../components/common/PageHeader'
 import { Tabs } from '../../components/common/Tabs'
 import { Button } from '../../components/common/Button'
 import { Modal } from '../../components/common/Modal'
-import { FormModal } from '../../components/common/FormModal'
+import { EmptyState } from '../../components/common/EmptyState'
 import { Skeleton } from '../../components/common/LoadingSkeleton'
 import { api } from '../../api/mockServer'
-import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
-import { getUserById } from '../../data/users'
+import { getUserById, USERS } from '../../data/users'
 import { formatDate } from '../../utils/format'
-import { genId } from '../../utils/csv'
+import { KIND_ORDER, localDate, parseLocalDate } from '../../utils/calendarRules'
+import { useOnTasksChanged, errMsg } from '../Tasks/taskClient'
+import { KIND_STYLE } from './calendarStyle'
+import { EventDetailDialog, EventFormDialog, rescheduleEvent } from './EventDialogs'
 
-const RESOURCES = ['tasks', 'activities', 'leads']
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
-const NEW_EVENT_TYPES = ['Meeting', 'Follow-up', 'Demo', 'Task']
+const HOURS = Array.from({ length: 15 }, (_, i) => i + 7) // 07:00 – 21:00
+const key = (d) => localDate(d instanceof Date ? d : new Date(d))
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x }
+const startOfWeek = (d) => addDays(new Date(d.getFullYear(), d.getMonth(), d.getDate()), -d.getDay())
 
-const TYPE_DOT = { task: 'bg-brand-500', followup: 'bg-rose-500', meeting: 'bg-emerald-500' }
-const TYPE_CHIP = {
-  task: 'bg-brand-500 text-white',
-  followup: 'bg-rose-500 text-white',
-  meeting: 'bg-emerald-500 text-white',
-}
-const TYPE_ICON = { task: CalendarClock, followup: Phone, meeting: Briefcase }
-const TYPE_LABEL = { task: 'Task', followup: 'Follow-up', meeting: 'Activity' }
-
-function useCalendarData() {
-  const [data, setData] = useState(null)
-  const [loading, setLoading] = useState(true)
-
-  const fetchAll = useCallback(() => {
-    setLoading(true)
-    return Promise.all(RESOURCES.map((r) => api.get(`/${r}`, { params: { all: true } })))
-      .then((results) => {
-        const merged = {}
-        RESOURCES.forEach((r, i) => { merged[r] = results[i].data })
-        setData(merged)
-      })
-      .finally(() => setLoading(false))
-  }, [])
-
-  useEffect(() => { fetchAll() }, [fetchAll])
-
-  return { data, loading, refresh: fetchAll }
+function rangeFor(view, cursor) {
+  if (view === 'month') { const first = new Date(cursor.getFullYear(), cursor.getMonth(), 1); const s = addDays(first, -first.getDay()); return [s, addDays(s, 41)] }
+  if (view === 'week') { const s = startOfWeek(cursor); return [s, addDays(s, 6)] }
+  if (view === 'day') return [cursor, cursor]
+  const t = new Date(); t.setHours(0, 0, 0, 0); return [t, addDays(t, 30)]
 }
 
-function dateKey(d) {
-  const dt = d instanceof Date ? d : new Date(d)
-  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`
-}
-
-function isSameDay(a, b) {
-  return dateKey(a) === dateKey(b)
-}
-
-function startOfWeek(date) {
-  const d = new Date(date)
-  d.setDate(d.getDate() - d.getDay())
-  d.setHours(0, 0, 0, 0)
-  return d
-}
-
-function addDays(date, n) {
-  const d = new Date(date)
-  d.setDate(d.getDate() + n)
-  return d
-}
-
-function buildEvents(data) {
-  if (!data) return []
-  const events = []
-  data.tasks.forEach((t) => {
-    if (!t.dueDate) return
-    events.push({ id: `task-${t.id}`, kind: 'task', title: t.title, date: t.dueDate, sub: `${t.relatedType}: ${t.relatedName}`, meta: t.priority })
-  })
-  data.activities.forEach((a) => {
-    if (!a.date) return
-    const kind = a.type === 'Follow-up' ? 'followup' : 'meeting'
-    events.push({ id: `act-${a.id}`, kind, title: a.subject, date: a.date, sub: getUserById(a.by)?.name || a.relatedName, meta: a.type })
-  })
-  data.leads.forEach((l) => {
-    if (!l.nextFollowUp || ['Converted', 'Lost'].includes(l.status)) return
-    events.push({ id: `lead-${l.id}`, kind: 'followup', title: `Follow up with ${l.name}`, date: l.nextFollowUp, sub: l.company, meta: l.priority })
-  })
-  return events
-}
-
-function EventChip({ event }) {
+function Chip({ ev, onOpen, drag }) {
+  const st = KIND_STYLE[ev.kind]
+  const Icon = st.icon
   return (
-    <span className={clsx('block truncate rounded px-1.5 py-0.5 text-[10px] font-medium', TYPE_CHIP[event.kind])}>
-      {event.title}
-    </span>
+    <button
+      type="button" draggable={!!ev.can?.reschedule} onDragStart={(e) => { e.dataTransfer.setData('text/cal-event', ev.id); drag?.(ev) }} onClick={(e) => { e.stopPropagation(); onOpen(ev) }}
+      title={`${ev.time ? `${ev.time} · ` : ''}${ev.title}${ev.relatedName ? ` — ${ev.relatedName}` : ''}`}
+      className={clsx('flex w-full items-center gap-1 truncate rounded px-1.5 py-0.5 text-left text-[11px] font-medium leading-4 transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500',
+        st.chip, ev.state === 'done' && 'opacity-60 line-through', ev.state === 'cancelled' && 'bg-ink-100 text-ink-400 line-through opacity-70 dark:bg-ink-800', ev.state === 'overdue' && 'ring-1 ring-rose-400', ev.can?.reschedule && 'cursor-grab')}
+    >
+      <Icon size={10} className="shrink-0" />
+      {ev.time && <span className="shrink-0 font-semibold">{ev.time}</span>}
+      <span className="truncate">{ev.title}</span>
+    </button>
   )
 }
 
-function EventRow({ event }) {
-  const Icon = TYPE_ICON[event.kind] || CalendarClock
+function EventRow({ ev, onOpen }) {
+  const st = KIND_STYLE[ev.kind]
+  const Icon = st.icon
   return (
-    <div className="flex items-start gap-3 rounded-lg px-2 py-2.5 hover:bg-ink-50 dark:hover:bg-ink-800">
-      <span className={clsx('flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white', TYPE_DOT[event.kind])}>
-        <Icon size={16} />
-      </span>
+    <button type="button" onClick={() => onOpen(ev)} className="flex w-full items-start gap-3 rounded-lg px-2 py-2.5 text-left hover:bg-ink-50 dark:hover:bg-ink-800">
+      <span className={clsx('flex h-9 w-9 shrink-0 items-center justify-center rounded-xl', st.solid)}><Icon size={16} /></span>
       <div className="min-w-0 flex-1">
-        <p className="truncate text-sm font-medium text-ink-800 dark:text-ink-100">{event.title}</p>
-        <p className="truncate text-xs text-ink-400">{event.sub}</p>
+        <p className={clsx('truncate text-sm font-medium', ev.state === 'done' || ev.state === 'cancelled' ? 'text-ink-400 line-through' : 'text-ink-800 dark:text-ink-100')}>{ev.title}</p>
+        <p className="truncate text-xs text-ink-400">{ev.relatedName ? `${ev.relatedType} · ${ev.relatedName}` : st.singular}{ev.assignees?.[0] ? ` · ${getUserById(ev.assignees[0])?.name || ev.assignees[0]}` : ''}</p>
       </div>
       <div className="shrink-0 text-right">
-        <p className="text-xs font-medium text-ink-400">{TYPE_LABEL[event.kind]}</p>
-        <p className="text-xs text-ink-400">{formatDate(event.date, { year: undefined })}</p>
+        <p className={clsx('text-xs font-medium', ev.state === 'overdue' ? 'text-rose-500' : 'text-ink-500')}>{ev.time ? `${ev.time}${ev.endTime ? `–${ev.endTime}` : ''}` : 'All day'}</p>
+        <p className="text-[11px] text-ink-400">{ev.state === 'overdue' ? 'Overdue' : st.singular}</p>
       </div>
-    </div>
+    </button>
   )
 }
 
 export default function CalendarPage() {
-  const { data, loading, refresh } = useCalendarData()
-  const { user } = useAuth()
   const { toast } = useToast()
-
+  const [params, setParams] = useSearchParams()
   const [view, setView] = useState('month')
-  const [cursor, setCursor] = useState(new Date())
+  const [cursor, setCursor] = useState(() => new Date())
+  const [events, setEvents] = useState([])
+  const [me, setMe] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [mine, setMine] = useState(true)
+  const [person, setPerson] = useState('all')
+  const [kinds, setKinds] = useState({ task: true, meeting: true, followup: true, reminder: true, deadline: false })
+  const [detail, setDetail] = useState(null)
   const [dayModal, setDayModal] = useState(null)
-  const [createOpen, setCreateOpen] = useState(false)
-  const [saving, setSaving] = useState(false)
+  const [form, setForm] = useState(null)
+  const [dragEv, setDragEv] = useState(null)
+  const [overDay, setOverDay] = useState(null)
 
-  const events = useMemo(() => buildEvents(data), [data])
+  const rt = params.get('relatedType')
+  const rid = params.get('relatedId')
+  const recordFilter = useMemo(() => (rt && rid ? { type: rt, id: rid } : null), [rt, rid])
+  const [from, to] = useMemo(() => rangeFor(view, cursor), [view, cursor])
+  const fromKey = key(from)
+  const toKey = key(to)
 
-  const eventsByDay = useMemo(() => {
-    const map = {}
-    events.forEach((ev) => {
-      const key = dateKey(ev.date)
-      if (!map[key]) map[key] = []
-      map[key].push(ev)
-    })
-    Object.values(map).forEach((list) => list.sort((a, b) => new Date(a.date) - new Date(b.date)))
-    return map
-  }, [events])
+  const load = useCallback(() => api.get('/calendar/events', { params: { from: fromKey, to: toKey } })
+    .then((r) => { setEvents(r.data.events); setMe(r.data.me); setError('') }).catch((e) => setError(errMsg(e))).finally(() => setLoading(false)), [fromKey, toKey])
+  useEffect(() => { setLoading(true); load() }, [load])
+  useOnTasksChanged(load)
+  useEffect(() => { // stay in step with edits made on other pages / tabs
+    const id = setInterval(load, 30000)
+    window.addEventListener('focus', load)
+    return () => { clearInterval(id); window.removeEventListener('focus', load) }
+  }, [load])
 
-  const goPrev = () => setCursor((c) => {
-    const d = new Date(c)
-    if (view === 'month') d.setMonth(d.getMonth() - 1)
-    else if (view === 'week') d.setDate(d.getDate() - 7)
-    else d.setDate(d.getDate() - 1)
-    return d
-  })
-  const goNext = () => setCursor((c) => {
-    const d = new Date(c)
-    if (view === 'month') d.setMonth(d.getMonth() + 1)
-    else if (view === 'week') d.setDate(d.getDate() + 7)
-    else d.setDate(d.getDate() + 1)
-    return d
-  })
-  const goToday = () => setCursor(new Date())
-
-  const monthCells = useMemo(() => {
-    const year = cursor.getFullYear()
-    const month = cursor.getMonth()
-    const firstOfMonth = new Date(year, month, 1)
-    const gridStart = addDays(firstOfMonth, -firstOfMonth.getDay())
-    return Array.from({ length: 42 }).map((_, i) => addDays(gridStart, i))
-  }, [cursor])
-
-  const weekDays = useMemo(() => {
-    const start = startOfWeek(cursor)
-    return Array.from({ length: 7 }).map((_, i) => addDays(start, i))
-  }, [cursor])
-
-  const agendaGroups = useMemo(() => {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const end = addDays(today, 30)
-    const upcoming = events.filter((ev) => {
-      const d = new Date(ev.date)
-      return d >= today && d <= end
-    }).sort((a, b) => new Date(a.date) - new Date(b.date))
-    const groups = []
-    upcoming.forEach((ev) => {
-      const key = dateKey(ev.date)
-      let group = groups.find((g) => g.key === key)
-      if (!group) { group = { key, date: ev.date, items: [] }; groups.push(group) }
-      group.items.push(ev)
-    })
-    return groups
-  }, [events])
-
-  const headerLabel = useMemo(() => {
-    if (view === 'month') return cursor.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
-    if (view === 'week') {
-      const start = startOfWeek(cursor)
-      const end = addDays(start, 6)
-      return `${formatDate(start)} – ${formatDate(end)}`
+  // /calendar?create=1 (the "New Meeting" quick action) opens the scheduler, locked to a record when one is in the URL
+  useEffect(() => {
+    if (params.get('create') === '1') {
+      setForm(recordFilter ? { relatedType: recordFilter.type, relatedId: recordFilter.id, lockRecord: true } : {})
+      setParams((p) => { const n = new URLSearchParams(p); n.delete('create'); return n }, { replace: true })
     }
-    if (view === 'day') return cursor.toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })
-    return 'Next 30 days'
-  }, [view, cursor])
+  }, [params]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const createEvent = (formData) => {
-    setSaving(true)
-    const payload = {
-      id: genId('ACT'),
-      type: formData.type,
-      relatedType: 'Event',
-      relatedId: null,
-      relatedName: formData.title,
-      subject: formData.title,
-      notes: formData.notes || '',
-      date: formData.date ? new Date(formData.date).toISOString() : new Date().toISOString(),
-      by: user?.id,
-      status: 'Scheduled',
-    }
-    api.post('/activities', payload).then(() => {
-      setSaving(false)
-      setCreateOpen(false)
-      toast('Event added to the calendar.', { type: 'success' })
-      refresh()
-    })
-  }
-
+  const involved = useCallback((ev) => (ev.assignees || []).includes(me) || ev.createdBy === me, [me])
+  const visible = useMemo(() => events.filter((ev) => {
+    if (!kinds[ev.kind]) return false
+    if (recordFilter && !((ev.relatedType === recordFilter.type && ev.relatedId === recordFilter.id) || ev.related?.some((r) => r.type === recordFilter.type && r.id === recordFilter.id))) return false
+    if (mine && !involved(ev)) return false
+    if (!mine && person !== 'all' && !(ev.assignees || []).includes(person)) return false
+    return true
+  }), [events, kinds, mine, person, involved, recordFilter])
+  const byDay = useMemo(() => { const m = {}; visible.forEach((ev) => { (m[ev.date] = m[ev.date] || []).push(ev) }); return m }, [visible])
+  const counts = useMemo(() => Object.fromEntries(KIND_ORDER.map((k) => [k, events.filter((e) => e.kind === k && (!mine || involved(e))).length])), [events, mine, involved])
   const today = new Date()
+  const todayKey = key(today)
+
+  const shift = (n) => setCursor((c) => { const d = new Date(c); if (view === 'month') d.setMonth(d.getMonth() + n); else if (view === 'week') d.setDate(d.getDate() + 7 * n); else d.setDate(d.getDate() + n); return d })
+  const header = view === 'month' ? cursor.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' })
+    : view === 'week' ? `${formatDate(startOfWeek(cursor))} – ${formatDate(addDays(startOfWeek(cursor), 6))}`
+      : view === 'day' ? cursor.toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }) : 'Next 30 days'
+
+  const dropOn = (dayKey, e) => {
+    e.preventDefault(); setOverDay(null)
+    const ev = dragEv; setDragEv(null)
+    if (!ev || ev.date === dayKey) return
+    rescheduleEvent(ev, dayKey).then(() => { toast(`Moved “${ev.title}” to ${formatDate(dayKey)}.`, { type: 'success' }); load(); window.dispatchEvent(new Event('crm:tasks-changed')) }).catch((err) => toast(errMsg(err), { type: 'error' }))
+  }
+  const dayProps = (dayKey) => ({ onDragOver: (e) => { if (dragEv) { e.preventDefault(); setOverDay(dayKey) } }, onDragLeave: () => setOverDay((o) => (o === dayKey ? null : o)), onDrop: (e) => dropOn(dayKey, e) })
+  const newOn = (dayKey) => setForm({ date: dayKey, ...(recordFilter ? { relatedType: recordFilter.type, relatedId: recordFilter.id, lockRecord: true } : {}) })
+
+  const monthCells = useMemo(() => Array.from({ length: 42 }, (_, i) => addDays(from, i)), [from])
+  const weekDays = useMemo(() => Array.from({ length: 7 }, (_, i) => addDays(from, i)), [from])
+  const agenda = useMemo(() => Object.keys(byDay).filter((k) => k >= fromKey && k <= toKey).sort().map((k) => ({ key: k, items: byDay[k] })), [byDay, fromKey, toKey])
 
   return (
     <div>
       <PageHeader
         title="Calendar"
-        description="Meetings, follow-ups, demos and task deadlines across your business, in one place."
-        actions={<Button icon={Plus} onClick={() => setCreateOpen(true)}>New Event</Button>}
+        description="Tasks, meetings, follow-ups, reminders and due dates — each one lives on its CRM record; the calendar just shows them."
+        actions={<><Button variant="secondary" icon={RefreshCw} onClick={() => { setLoading(true); load() }} aria-label="Refresh calendar">Refresh</Button><Button icon={Plus} onClick={() => newOn(view === 'day' ? key(cursor) : todayKey)}>New Event</Button></>}
       />
 
-      <Tabs
-        tabs={[
-          { value: 'month', label: 'Month' },
-          { value: 'week', label: 'Week' },
-          { value: 'day', label: 'Day' },
-          { value: 'agenda', label: 'Agenda' },
-        ]}
-        active={view}
-        onChange={setView}
-        className="mb-4"
-      />
+      {recordFilter && (
+        <div className="mb-3 flex items-center gap-2 rounded-xl border border-brand-200 bg-brand-50/60 px-4 py-2 text-sm text-brand-800 dark:border-brand-800/40 dark:bg-brand-900/10 dark:text-brand-200">
+          Showing only events connected to <b>{recordFilter.type} {recordFilter.id}</b>
+          <button type="button" aria-label="Show all events" onClick={() => setParams((p) => { const n = new URLSearchParams(p); n.delete('relatedType'); n.delete('relatedId'); return n }, { replace: true })} className="ml-auto rounded p-1 hover:bg-brand-100"><X size={14} /></button>
+        </div>
+      )}
+
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <div className="flex rounded-lg border border-ink-200 bg-white p-0.5 text-xs font-medium dark:border-ink-700 dark:bg-ink-900" role="group" aria-label="Whose events">
+          <button type="button" aria-pressed={mine} onClick={() => setMine(true)} className={clsx('rounded-md px-3 py-1.5', mine ? 'bg-brand-600 text-white' : 'text-ink-500')}>My calendar</button>
+          <button type="button" aria-pressed={!mine} onClick={() => setMine(false)} className={clsx('rounded-md px-3 py-1.5', !mine ? 'bg-brand-600 text-white' : 'text-ink-500')}>Everyone I can see</button>
+        </div>
+        {!mine && (
+          <select aria-label="Person" value={person} onChange={(e) => setPerson(e.target.value)} className="h-9 rounded-lg border border-ink-200 bg-white px-2.5 text-xs text-ink-700 dark:border-ink-700 dark:bg-ink-900 dark:text-ink-200">
+            <option value="all">All people</option>{USERS.filter((u) => u.status !== 'Inactive').map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+          </select>
+        )}
+        <div className="flex flex-wrap gap-1.5" role="group" aria-label="Event types">
+          {KIND_ORDER.map((k) => (
+            <button key={k} type="button" aria-pressed={kinds[k]} onClick={() => setKinds((x) => ({ ...x, [k]: !x[k] }))}
+              className={clsx('inline-flex items-center gap-1.5 rounded-full px-2.5 py-1.5 text-xs font-medium ring-1 ring-inset transition-colors', kinds[k] ? 'bg-white text-ink-800 ring-ink-200 dark:bg-ink-900 dark:text-ink-100 dark:ring-ink-700' : 'text-ink-400 ring-ink-100 line-through dark:ring-ink-800')}>
+              <span className={clsx('h-2 w-2 rounded-full', KIND_STYLE[k].dot, !kinds[k] && 'opacity-40')} />{KIND_STYLE[k].label}<span className="text-ink-400">{counts[k]}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <Tabs tabs={[{ value: 'month', label: 'Month' }, { value: 'week', label: 'Week' }, { value: 'day', label: 'Day' }, { value: 'agenda', label: 'Agenda' }]} active={view} onChange={setView} className="mb-4" />
 
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-        <h2 className="text-sm font-semibold text-ink-800 dark:text-ink-100">{headerLabel}</h2>
+        <h2 className="text-sm font-semibold text-ink-800 dark:text-ink-100">{header}</h2>
         {view !== 'agenda' && (
           <div className="flex items-center gap-1.5">
-            <Button variant="secondary" size="sm" onClick={goToday}>Today</Button>
-            <IconNavButton icon={ChevronLeft} onClick={goPrev} />
-            <IconNavButton icon={ChevronRight} onClick={goNext} />
+            <Button variant="secondary" size="sm" onClick={() => setCursor(new Date())}>Today</Button>
+            <button type="button" aria-label="Previous" onClick={() => shift(-1)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-ink-200 text-ink-500 hover:bg-ink-100 dark:border-ink-700 dark:hover:bg-ink-800"><ChevronLeft size={15} /></button>
+            <button type="button" aria-label="Next" onClick={() => shift(1)} className="flex h-8 w-8 items-center justify-center rounded-lg border border-ink-200 text-ink-500 hover:bg-ink-100 dark:border-ink-700 dark:hover:bg-ink-800"><ChevronRight size={15} /></button>
           </div>
         )}
       </div>
 
-      {loading ? (
+      {error ? (
+        <EmptyState icon={AlertTriangle} title="Couldn’t load the calendar" description={error} action={<Button variant="secondary" onClick={load}>Try again</Button>} />
+      ) : loading && !events.length ? (
         <Skeleton className="h-[560px] rounded-2xl" />
       ) : (
         <>
           {view === 'month' && (
             <div className="overflow-hidden rounded-2xl border border-ink-100 bg-ink-100 shadow-card dark:border-ink-800 dark:bg-ink-800">
-              <div className="grid grid-cols-7 gap-px bg-ink-100 dark:bg-ink-800">
-                {WEEKDAYS.map((w) => (
-                  <div key={w} className="bg-ink-50/80 px-2 py-2 text-center text-xs font-semibold uppercase tracking-wide text-ink-500 dark:bg-ink-800/60 dark:text-ink-400">
-                    {w}
-                  </div>
-                ))}
+              <div className="grid grid-cols-7 gap-px">
+                {WEEKDAYS.map((w) => <div key={w} className="bg-ink-50/80 px-2 py-2 text-center text-xs font-semibold uppercase tracking-wide text-ink-500 dark:bg-ink-800/60 dark:text-ink-400">{w}</div>)}
               </div>
-              <div className="grid grid-cols-7 gap-px bg-ink-100 dark:bg-ink-800">
+              <div className="grid grid-cols-7 gap-px">
                 {monthCells.map((day) => {
-                  const key = dateKey(day)
-                  const dayEvents = eventsByDay[key] || []
+                  const k = key(day)
+                  const list = byDay[k] || []
                   const inMonth = day.getMonth() === cursor.getMonth()
-                  const isToday = isSameDay(day, today)
                   return (
-                    <button
-                      key={key}
-                      onClick={() => setDayModal(day)}
-                      className={clsx(
-                        'flex min-h-[110px] flex-col items-start gap-1 bg-white p-2 text-left transition-colors hover:bg-brand-50/40 dark:bg-ink-900 dark:hover:bg-brand-900/10',
-                        !inMonth && 'bg-ink-50/60 dark:bg-ink-900/40',
-                      )}
-                    >
-                      <span className={clsx(
-                        'flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium',
-                        isToday ? 'bg-brand-600 text-white' : inMonth ? 'text-ink-700 dark:text-ink-200' : 'text-ink-300 dark:text-ink-600',
-                      )}>
-                        {day.getDate()}
-                      </span>
-                      <div className="flex w-full flex-col gap-1">
-                        {dayEvents.slice(0, 3).map((ev) => <EventChip key={ev.id} event={ev} />)}
-                        {dayEvents.length > 3 && (
-                          <span className="text-[10px] font-medium text-ink-400">+{dayEvents.length - 3} more</span>
-                        )}
+                    <div key={k} role="button" tabIndex={0} aria-label={`${k}, ${list.length} events`} onClick={() => setDayModal(k)} onKeyDown={(e) => e.key === 'Enter' && setDayModal(k)} {...dayProps(k)}
+                      className={clsx('flex min-h-[112px] cursor-pointer flex-col items-start gap-1 bg-white p-1.5 text-left transition-colors hover:bg-brand-50/40 dark:bg-ink-900 dark:hover:bg-brand-900/10', !inMonth && 'bg-ink-50/60 dark:bg-ink-900/40', overDay === k && 'bg-brand-50 ring-2 ring-inset ring-brand-400 dark:bg-brand-900/20')}>
+                      <span className={clsx('flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium', k === todayKey ? 'bg-brand-600 text-white' : inMonth ? 'text-ink-700 dark:text-ink-200' : 'text-ink-300 dark:text-ink-600')}>{day.getDate()}</span>
+                      <div className="flex w-full flex-col gap-0.5">
+                        {list.slice(0, 3).map((ev) => <Chip key={ev.id} ev={ev} onOpen={setDetail} drag={setDragEv} />)}
+                        {list.length > 3 && <span className="px-1 text-[10px] font-medium text-ink-400">+{list.length - 3} more</span>}
                       </div>
-                    </button>
+                    </div>
                   )
                 })}
               </div>
@@ -300,55 +219,59 @@ export default function CalendarPage() {
           )}
 
           {view === 'week' && (
-            <div className="grid grid-cols-7 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-7">
               {weekDays.map((day) => {
-                const key = dateKey(day)
-                const dayEvents = eventsByDay[key] || []
-                const isToday = isSameDay(day, today)
+                const k = key(day)
+                const list = byDay[k] || []
                 return (
-                  <div key={key} className={clsx('flex min-h-[320px] flex-col rounded-2xl border bg-white p-2.5 dark:bg-ink-900', isToday ? 'border-brand-400 dark:border-brand-500' : 'border-ink-100 dark:border-ink-800')}>
+                  <div key={k} {...dayProps(k)} className={clsx('flex min-h-[260px] flex-col rounded-2xl border bg-white p-2.5 dark:bg-ink-900', k === todayKey ? 'border-brand-400 dark:border-brand-500' : 'border-ink-100 dark:border-ink-800', overDay === k && 'ring-2 ring-brand-400')}>
                     <div className="mb-2 flex items-center justify-between">
-                      <span className="text-xs font-semibold uppercase tracking-wide text-ink-400">{WEEKDAYS[day.getDay()]}</span>
-                      <span className={clsx('flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium', isToday ? 'bg-brand-600 text-white' : 'text-ink-700 dark:text-ink-200')}>
-                        {day.getDate()}
-                      </span>
+                      <button type="button" onClick={() => { setCursor(day); setView('day') }} className="text-xs font-semibold uppercase tracking-wide text-ink-400 hover:text-brand-600">{WEEKDAYS[day.getDay()]}</button>
+                      <span className={clsx('flex h-6 w-6 items-center justify-center rounded-full text-xs font-medium', k === todayKey ? 'bg-brand-600 text-white' : 'text-ink-700 dark:text-ink-200')}>{day.getDate()}</span>
                     </div>
-                    <div className="scrollbar-thin flex-1 space-y-1.5 overflow-y-auto">
-                      {dayEvents.map((ev) => <EventChip key={ev.id} event={ev} />)}
-                      {dayEvents.length === 0 && <p className="mt-4 text-center text-[11px] text-ink-300 dark:text-ink-600">No events</p>}
+                    <div className="scrollbar-thin flex-1 space-y-1 overflow-y-auto">
+                      {list.map((ev) => <Chip key={ev.id} ev={ev} onOpen={setDetail} drag={setDragEv} />)}
+                      {!list.length && <p className="mt-4 text-center text-[11px] text-ink-300 dark:text-ink-600">No events</p>}
                     </div>
+                    <button type="button" onClick={() => newOn(k)} className="mt-2 text-[11px] font-medium text-ink-400 hover:text-brand-600">+ Add</button>
                   </div>
                 )
               })}
             </div>
           )}
 
-          {view === 'day' && (
-            <div className="rounded-2xl border border-ink-100 bg-white p-4 shadow-card dark:border-ink-800 dark:bg-ink-900">
-              {(eventsByDay[dateKey(cursor)] || []).length === 0 ? (
-                <p className="py-12 text-center text-sm text-ink-400">Nothing scheduled for this day.</p>
-              ) : (
-                <div className="space-y-1">
-                  {(eventsByDay[dateKey(cursor)] || []).map((ev) => <EventRow key={ev.id} event={ev} />)}
+          {view === 'day' && (() => {
+            const k = key(cursor)
+            const list = byDay[k] || []
+            const hourOf = (e) => Number(e.time.slice(0, 2))
+            const loose = list.filter((e) => !e.time || hourOf(e) < HOURS[0] || hourOf(e) > HOURS[HOURS.length - 1])
+            return (
+              <div {...dayProps(k)} className="rounded-2xl border border-ink-100 bg-white shadow-card dark:border-ink-800 dark:bg-ink-900">
+                {!list.length && <p className="px-4 pt-10 text-center text-sm text-ink-400">Nothing scheduled for this day.</p>}
+                {loose.length > 0 && (
+                  <div className="border-b border-ink-100 p-3 dark:border-ink-800"><p className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wide text-ink-400">All day / outside working hours</p>{loose.map((ev) => <EventRow key={ev.id} ev={ev} onOpen={setDetail} />)}</div>
+                )}
+                <div className="divide-y divide-ink-50 dark:divide-ink-800/60">
+                  {HOURS.map((h) => (
+                    <div key={h} className="flex min-h-[48px] gap-3 px-3 py-1.5">
+                      <span className="w-12 shrink-0 pt-1 text-right text-[11px] text-ink-400">{String(h).padStart(2, '0')}:00</span>
+                      <div className="min-w-0 flex-1">{list.filter((e) => e.time && hourOf(e) === h).map((ev) => <EventRow key={ev.id} ev={ev} onOpen={setDetail} />)}</div>
+                    </div>
+                  ))}
                 </div>
-              )}
-            </div>
-          )}
+                <div className="border-t border-ink-100 p-3 dark:border-ink-800"><Button variant="secondary" size="sm" icon={Plus} onClick={() => newOn(k)}>Add to this day</Button></div>
+              </div>
+            )
+          })()}
 
           {view === 'agenda' && (
             <div className="rounded-2xl border border-ink-100 bg-white p-4 shadow-card dark:border-ink-800 dark:bg-ink-900">
-              {agendaGroups.length === 0 ? (
-                <p className="py-12 text-center text-sm text-ink-400">Nothing scheduled in the next 30 days.</p>
-              ) : (
+              {!agenda.length ? <p className="py-12 text-center text-sm text-ink-400">Nothing scheduled in the next 30 days.</p> : (
                 <div className="space-y-5">
-                  {agendaGroups.map((group) => (
-                    <div key={group.key}>
-                      <h3 className="mb-1.5 px-2 text-xs font-semibold uppercase tracking-wide text-ink-400">
-                        {isSameDay(group.date, today) ? 'Today' : isSameDay(group.date, addDays(today, 1)) ? 'Tomorrow' : formatDate(group.date, { weekday: 'long', month: 'short' })}
-                      </h3>
-                      <div className="space-y-1">
-                        {group.items.map((ev) => <EventRow key={ev.id} event={ev} />)}
-                      </div>
+                  {agenda.map((g) => (
+                    <div key={g.key}>
+                      <h3 className="mb-1.5 px-2 text-xs font-semibold uppercase tracking-wide text-ink-400">{g.key === todayKey ? 'Today' : g.key === key(addDays(today, 1)) ? 'Tomorrow' : formatDate(g.key, { weekday: 'long', month: 'short' })}</h3>
+                      <div className="space-y-0.5">{g.items.map((ev) => <EventRow key={ev.id} ev={ev} onOpen={setDetail} />)}</div>
                     </div>
                   ))}
                 </div>
@@ -358,47 +281,16 @@ export default function CalendarPage() {
         </>
       )}
 
-      <Modal
-        open={!!dayModal}
-        onClose={() => setDayModal(null)}
-        title={dayModal ? dayModal.toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }) : ''}
-        description="All events scheduled on this day."
-      >
-        <div className="space-y-1">
-          {(dayModal ? eventsByDay[dateKey(dayModal)] || [] : []).map((ev) => <EventRow key={ev.id} event={ev} />)}
-          {dayModal && (eventsByDay[dateKey(dayModal)] || []).length === 0 && (
-            <p className="py-8 text-center text-sm text-ink-400">No events scheduled for this day.</p>
-          )}
+      <Modal open={!!dayModal} onClose={() => setDayModal(null)} title={dayModal ? parseLocalDate(dayModal).toLocaleDateString('en-IN', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' }) : ''} description="Everything on this day."
+        footer={<Button icon={Plus} onClick={() => { const d = dayModal; setDayModal(null); newOn(d) }}>Add event</Button>}>
+        <div className="space-y-0.5">
+          {(dayModal ? byDay[dayModal] || [] : []).map((ev) => <EventRow key={ev.id} ev={ev} onOpen={(e) => { setDayModal(null); setDetail(e) }} />)}
+          {dayModal && !(byDay[dayModal] || []).length && <p className="py-8 text-center text-sm text-ink-400">No events on this day.</p>}
         </div>
       </Modal>
 
-      <FormModal
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        title="New Event"
-        description="Add a meeting, follow-up, demo or task to the calendar."
-        submitLabel="Add Event"
-        loading={saving}
-        onSubmit={createEvent}
-        defaultValues={{ type: NEW_EVENT_TYPES[0], date: new Date().toISOString().slice(0, 10) }}
-        fields={[
-          { name: 'title', label: 'Event title', required: true, span: 2 },
-          { name: 'type', label: 'Type', type: 'select', options: NEW_EVENT_TYPES.map((t) => ({ value: t, label: t })), required: true, span: 1 },
-          { name: 'date', label: 'Date', type: 'date', required: true, span: 1 },
-          { name: 'notes', label: 'Notes', type: 'textarea', span: 2 },
-        ]}
-      />
+      <EventDetailDialog event={detail} onClose={() => setDetail(null)} onChanged={load} />
+      <EventFormDialog open={!!form} preset={form || undefined} onClose={() => setForm(null)} onSaved={load} />
     </div>
-  )
-}
-
-function IconNavButton({ icon: Icon, onClick }) {
-  return (
-    <button
-      onClick={onClick}
-      className="flex h-9 w-9 items-center justify-center rounded-lg border border-ink-200 text-ink-500 transition-colors hover:bg-ink-100 hover:text-ink-700 dark:border-ink-700 dark:text-ink-400 dark:hover:bg-ink-800 dark:hover:text-ink-100"
-    >
-      <Icon size={16} />
-    </button>
   )
 }

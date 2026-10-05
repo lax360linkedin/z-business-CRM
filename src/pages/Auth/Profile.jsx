@@ -1,15 +1,84 @@
 import { useForm } from 'react-hook-form'
-import { useMemo, useState } from 'react'
-import { Mail, Phone, Building2, BadgeCheck, Monitor, LogOut, ShieldOff, Info, ShieldCheck } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Mail, Phone, Building2, BadgeCheck, Monitor, LogOut, ShieldOff, Info, Trash2, Smartphone } from 'lucide-react'
 import { PageHeader } from '../../components/common/PageHeader'
 import { FormField, Input } from '../../components/common/FormField'
 import { Button } from '../../components/common/Button'
 import { Avatar } from '../../components/common/Avatar'
 import { Badge } from '../../components/common/Badge'
+import { ConfirmDialog } from '../../components/common/ConfirmDialog'
 import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
-import { formatDate, timeAgo } from '../../utils/format'
+import { formatDate, formatDateTime, timeAgo } from '../../utils/format'
 import { generateMockSessions } from '../../data/userAccounts'
+import { getDeviceId } from '../../utils/deviceId'
+import { getSecuritySettings } from '../../utils/securitySettings'
+
+// Trusted Devices: the real, backend-held list behind "two-step verification on first login
+// per device" — see src/utils/sessionStore.js. Each row is a server-side record, not a
+// frontend flag; revoking one here forces that device back through 2FA on its next sign-in
+// (and immediately ends its session too, if it's the one open right now).
+function TrustedDevicesPanel() {
+  const { listMyTrustedDevices, revokeMyDevice } = useAuth()
+  const { toast } = useToast()
+  const [devices, setDevices] = useState([])
+  const [revokeTarget, setRevokeTarget] = useState(null)
+  const currentDeviceId = useMemo(() => getDeviceId(), [])
+  const { trustedDeviceDays } = getSecuritySettings()
+
+  useEffect(() => { setDevices(listMyTrustedDevices()) }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const confirmRevoke = () => {
+    const isCurrent = revokeTarget.deviceId === currentDeviceId
+    revokeMyDevice(revokeTarget.id, isCurrent)
+    setDevices((ds) => ds.filter((d) => d.id !== revokeTarget.id))
+    toast(isCurrent ? 'Device revoked — you have been signed out.' : 'Device revoked. It will need two-step verification to sign in again.', { type: 'success' })
+    setRevokeTarget(null)
+  }
+
+  return (
+    <div className="mt-6 rounded-2xl border border-ink-100 bg-white p-6 shadow-card dark:border-ink-800 dark:bg-ink-900">
+      <div>
+        <h2 className="text-base font-bold text-ink-900 dark:text-ink-50">Trusted Devices</h2>
+        <p className="mt-1 text-sm text-ink-500 dark:text-ink-400">Devices that skip two-step verification for {trustedDeviceDays} days after it's confirmed once. Revoke a device to require verification again next time.</p>
+      </div>
+
+      {devices.length === 0 ? (
+        <p className="mt-4 text-sm text-ink-400">No trusted devices yet — you'll see one here the first time you complete two-step verification on a device.</p>
+      ) : (
+        <div className="mt-4 space-y-2.5">
+          {devices.map((d) => {
+            const isCurrent = d.deviceId === currentDeviceId
+            const expired = Date.now() > d.trustExpiresAt
+            return (
+              <div key={d.id} className={`flex items-center justify-between rounded-xl border px-4 py-3 ${isCurrent ? 'border-emerald-200 bg-emerald-50/60 dark:border-emerald-800 dark:bg-emerald-900/20' : 'border-ink-100 dark:border-ink-800'}`}>
+                <div className="flex items-center gap-3">
+                  <Smartphone size={18} className={isCurrent ? 'text-emerald-600 dark:text-emerald-400' : 'text-ink-400'} />
+                  <div>
+                    <p className="text-sm font-medium text-ink-800 dark:text-ink-100">
+                      {d.deviceLabel || 'Unknown device'} {isCurrent && <Badge tone="success">This device</Badge>} {expired && <Badge tone="warning">Trust expired</Badge>}
+                    </p>
+                    <p className="text-xs text-ink-400">Verified {formatDateTime(d.createdAt)} · Last used {timeAgo(d.lastUsedAt)} · Trusted until {formatDate(d.trustExpiresAt)}</p>
+                  </div>
+                </div>
+                <Button variant="ghost" size="sm" icon={Trash2} className="hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-900/20" onClick={() => setRevokeTarget(d)}>Revoke</Button>
+              </div>
+            )
+          })}
+        </div>
+      )}
+
+      <ConfirmDialog
+        open={!!revokeTarget}
+        onClose={() => setRevokeTarget(null)}
+        onConfirm={confirmRevoke}
+        title="Revoke this trusted device?"
+        description="This device will need to complete two-step verification again the next time it signs in."
+        confirmLabel="Revoke Device"
+      />
+    </div>
+  )
+}
 
 // Active Sessions: the current row is the one real session this frontend-only app can
 // honestly track. The "other devices" rows are clearly-labeled mock data — there's no
@@ -76,65 +145,6 @@ function ActiveSessionsPanel() {
   )
 }
 
-function Toggle({ checked, onChange, disabled }) {
-  return (
-    <button
-      type="button"
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-      className={`relative h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-50 ${checked ? 'bg-brand-600' : 'bg-ink-200 dark:bg-ink-700'}`}
-    >
-      <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${checked ? 'translate-x-5' : 'translate-x-0.5'}`} />
-    </button>
-  )
-}
-
-// Self-service Two-Step Verification (2FA) on/off — takes effect on the *next* sign-in, not
-// the current session (there's nothing to "step up" mid-session in this mock). Persists to
-// the account's `mfaEnabled` field, which `authenticate()` reads fresh on every login attempt.
-function LoginSecurityPanel() {
-  const { user, setMfaEnabled } = useAuth()
-  const { toast } = useToast()
-  const [saving, setSaving] = useState(false)
-
-  const handleToggle = (next) => {
-    setSaving(true)
-    setTimeout(() => {
-      setMfaEnabled(next)
-      setSaving(false)
-      toast(
-        next
-          ? "Two-Step Verification enabled. You'll be asked for a verification code the next time you sign in."
-          : 'Two-Step Verification disabled.',
-        { type: 'success' },
-      )
-    }, 300)
-  }
-
-  return (
-    <div className="mt-6 rounded-2xl border border-ink-100 bg-white p-6 shadow-card dark:border-ink-800 dark:bg-ink-900">
-      <div className="flex items-center justify-between gap-4">
-        <div className="flex items-start gap-3">
-          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-ink-100 text-ink-500 dark:bg-ink-800 dark:text-ink-400">
-            <ShieldCheck size={16} />
-          </span>
-          <div>
-            <p className="text-sm font-semibold text-ink-800 dark:text-ink-100">Two-Step Verification (2FA)</p>
-            <p className="mt-0.5 text-xs text-ink-400">Require a one-time verification code, in addition to your password, whenever you sign in.</p>
-          </div>
-        </div>
-        <Toggle checked={!!user?.mfaEnabled} onChange={handleToggle} disabled={saving} />
-      </div>
-      {user?.mfaEnabled && (
-        <div className="mt-4 flex items-start gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-xs text-emerald-800 dark:border-emerald-800/50 dark:bg-emerald-900/20 dark:text-emerald-300">
-          <ShieldCheck size={13} className="mt-0.5 shrink-0" />
-          <span>Two-step verification is on — you'll enter a 6-digit code after your password on every sign-in.</span>
-        </div>
-      )}
-    </div>
-  )
-}
-
 export default function Profile() {
   const { user } = useAuth()
   const { toast } = useToast()
@@ -193,7 +203,7 @@ export default function Profile() {
         </div>
       </form>
 
-      <LoginSecurityPanel />
+      <TrustedDevicesPanel />
       <ActiveSessionsPanel />
     </div>
   )

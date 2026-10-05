@@ -1,159 +1,189 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Trash2, Eye } from 'lucide-react'
+import { Plus, Eye, Download, Settings2, FileSignature, FilePen, Send, SearchCheck, CheckCircle2, XCircle, Timer, IndianRupee, Hourglass, Handshake } from 'lucide-react'
 import { PageHeader } from '../../components/common/PageHeader'
 import { SearchBar } from '../../components/common/SearchBar'
-import { FilterPanel, FilterToggleButton } from '../../components/common/FilterPanel'
+import { FilterToggleButton } from '../../components/common/FilterPanel'
 import { DataTable } from '../../components/common/DataTable'
 import { StatusBadge } from '../../components/common/Badge'
 import { Button, IconButton } from '../../components/common/Button'
-import { FormModal } from '../../components/common/FormModal'
-import { ConfirmDialog } from '../../components/common/ConfirmDialog'
+import { StatCard } from '../../components/common/StatCard'
+import { Modal } from '../../components/common/Modal'
+import { Input, Select } from '../../components/common/FormField'
+import { EmptyState } from '../../components/common/EmptyState'
 import { useCrud } from '../../hooks/useCrud'
 import { useToast } from '../../context/ToastContext'
-import { SERVICES, PROPOSAL_STATUSES } from '../../data/constants'
+import { useAuth } from '../../context/AuthContext'
+import { api } from '../../api/mockServer'
+import { PROPOSAL_STATUSES } from '../../data/constants'
 import { salesUsers, getUserById } from '../../data/users'
-import { CUSTOMERS, getCustomerById } from '../../data/customers'
 import { formatCurrency, formatDate } from '../../utils/format'
-import { genId } from '../../utils/csv'
+import { downloadCsv } from '../../utils/csv'
+import { PR_OPEN, PR_SENT_STATES } from '../../utils/proposalCalc'
+import { sweepExpired } from './proposalClient'
+
+const sel = 'h-9 rounded-lg border border-ink-200 bg-white px-2.5 text-xs text-ink-700 dark:border-ink-700 dark:bg-ink-900 dark:text-ink-200'
+const todayStr = () => new Date().toISOString().slice(0, 10)
+
+/** Open deals — a proposal always starts from one, so the client/deal links are never typed in. */
+function DealPicker({ open, onClose, onPick }) {
+  const [rows, setRows] = useState(null)
+  const [q, setQ] = useState('')
+  useEffect(() => {
+    if (!open) return
+    setRows(null)
+    Promise.all([api.get('/deals', { params: { all: true } }), api.get('/proposals', { params: { all: true } })]).then(([d, p]) => {
+      const openDeals = new Set(p.data.filter((x) => PR_OPEN.includes(x.status)).map((x) => x.dealId))
+      setRows(d.data.filter((x) => !String(x.stage).startsWith('Closed')).map((x) => ({ ...x, hasOpen: openDeals.has(x.id) })))
+    })
+  }, [open])
+  const list = (rows || []).filter((x) => `${x.name} ${x.id} ${x.companyName}`.toLowerCase().includes(q.toLowerCase())).slice(0, 60)
+  return (
+    <Modal open={open} onClose={onClose} title="New proposal" description="Choose the deal this proposal is for — client, requirement, services and budget are carried over." size="lg">
+      <div className="space-y-3">
+        <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search by deal, company or ID…" />
+        {rows === null ? <p className="py-8 text-center text-sm text-ink-400">Loading deals…</p> : !list.length ? <EmptyState icon={Handshake} title="No open deals found" description="Proposals start from an open deal." /> : (
+          <ul className="divide-y divide-ink-100 rounded-xl border border-ink-100 dark:divide-ink-800 dark:border-ink-800">
+            {list.map((d) => (
+              <li key={d.id}><button type="button" onClick={() => onPick(d)} className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left hover:bg-ink-50 dark:hover:bg-ink-800/50">
+                <span className="min-w-0"><span className="block truncate text-sm font-semibold text-ink-800 dark:text-ink-100">{d.name}</span><span className="block text-xs text-ink-400">{d.id} · {d.stage}{d.hasOpen ? ' · has an open proposal' : ''}</span></span>
+                <span className="text-sm font-medium text-ink-700 dark:text-ink-200">{formatCurrency(d.value, { compact: true })}</span>
+              </button></li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </Modal>
+  )
+}
 
 export default function Proposals() {
-  const crud = useCrud('proposals', { searchFields: ['title', 'customerName', 'service'], pageSize: 10 })
-  const [filtersOpen, setFiltersOpen] = useState(false)
-  const [selected, setSelected] = useState([])
-  const [createOpen, setCreateOpen] = useState(false)
-  const [saving, setSaving] = useState(false)
-  const [deleteTarget, setDeleteTarget] = useState(null)
-  const { toast } = useToast()
   const navigate = useNavigate()
+  const { toast } = useToast()
+  const { hasPermission } = useAuth()
+  const [filtersOpen, setFiltersOpen] = useState(false)
+  const [pickerOpen, setPickerOpen] = useState(false)
+  const [f, setF] = useState({ number: '', status: 'all', owner: 'all', company: 'all', deal: 'all', contact: 'all', from: '', to: '', min: '', max: '', expiry: 'all' })
+  const set = (patch) => setF((x) => ({ ...x, ...patch }))
+  const [swept, setSwept] = useState(false)
+  useEffect(() => { sweepExpired().finally(() => setSwept(true)) }, [])
 
-  const reps = salesUsers()
+  const filterFn = useCallback((p) => {
+    if (f.number && !p.number.toLowerCase().includes(f.number.toLowerCase())) return false
+    if (f.status !== 'all' && p.status !== f.status) return false
+    if (f.owner !== 'all' && p.ownerId !== f.owner) return false
+    if (f.company !== 'all' && p.companyId !== f.company) return false
+    if (f.deal !== 'all' && p.dealId !== f.deal) return false
+    if (f.contact !== 'all' && p.contactId !== f.contact) return false
+    if (f.from && p.createdDate < f.from) return false
+    if (f.to && p.createdDate > f.to) return false
+    if (f.min !== '' && p.value < Number(f.min)) return false
+    if (f.max !== '' && p.value > Number(f.max)) return false
+    if (f.expiry !== 'all') {
+      const days = Math.ceil((new Date(p.validUntil) - new Date(todayStr())) / 86400000)
+      if (f.expiry === 'expired' && p.status !== 'Expired') return false
+      if (f.expiry === 'week' && !(PR_OPEN.includes(p.status) && days >= 0 && days <= 7)) return false
+      if (f.expiry === 'month' && !(PR_OPEN.includes(p.status) && days >= 0 && days <= 30)) return false
+      if (f.expiry === 'valid' && !(PR_OPEN.includes(p.status) && days >= 0)) return false
+    }
+    return true
+  }, [f])
+  const crud = useCrud('proposals', { searchFields: ['number', 'title', 'customerName', 'dealName'], pageSize: 10, filterFn })
+  useEffect(() => { if (swept) crud.refresh?.() }, [swept]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const filterDefs = [
-    { key: 'status', label: 'Statuses', options: PROPOSAL_STATUSES.map((s) => ({ value: s, label: s })) },
-    { key: 'assignedTo', label: 'Staff', options: reps.map((r) => ({ value: r.id, label: r.name })) },
-    { key: 'service', label: 'Services', options: SERVICES.map((s) => ({ value: s, label: s })) },
-  ]
+  const all = crud.allItems
+  const stats = useMemo(() => {
+    const sum = (list) => list.reduce((s, p) => s + (p.value || 0), 0)
+    const c = (st) => all.filter((p) => p.status === st).length
+    return {
+      total: all.length, draft: c('Draft'), review: c('Internal Review'), sent: all.filter((p) => ['Sent', 'Viewed', 'Revision Requested'].includes(p.status)).length,
+      accepted: c('Accepted'), rejected: c('Rejected'), expired: c('Expired'),
+      totalValue: sum(all), acceptedValue: sum(all.filter((p) => p.status === 'Accepted')), pendingValue: sum(all.filter((p) => PR_OPEN.includes(p.status))),
+    }
+  }, [all])
+
+  const companies = useMemo(() => [...new Map(all.map((p) => [p.companyId, p.customerName])).entries()].filter(([id]) => id), [all])
+  const deals = useMemo(() => [...new Map(all.map((p) => [p.dealId, p.dealName || p.dealId])).entries()].filter(([id]) => id), [all])
+  const contacts = useMemo(() => [...new Map(all.map((p) => [p.contactId, p.clientSnapshot?.contactName])).entries()].filter(([id]) => id), [all])
+  const active = Object.entries(f).filter(([k, v]) => v && v !== 'all').length
+  const clear = () => setF({ number: '', status: 'all', owner: 'all', company: 'all', deal: 'all', contact: 'all', from: '', to: '', min: '', max: '', expiry: 'all' })
 
   const columns = [
-    { key: 'title', header: 'Title', sortable: true, className: 'font-medium text-ink-800 dark:text-ink-100' },
-    { key: 'customerName', header: 'Customer', sortable: true },
-    { key: 'service', header: 'Service' },
-    { key: 'value', header: 'Value', sortable: true, render: (row) => formatCurrency(row.value) },
-    { key: 'status', header: 'Status', render: (row) => <StatusBadge status={row.status} /> },
-    { key: 'assignedTo', header: 'Assigned To', render: (row) => getUserById(row.assignedTo)?.name.split(' ')[0] || '—' },
-    { key: 'createdDate', header: 'Created Date', sortable: true, render: (row) => formatDate(row.createdDate) },
-    { key: 'validUntil', header: 'Valid Until', sortable: true, render: (row) => formatDate(row.validUntil) },
-    {
-      key: 'actions', header: '', headerClassName: 'w-16',
-      render: (row) => (
-        <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
-          <IconButton icon={Eye} size="sm" onClick={() => navigate(`/proposals/${row.id}`)} />
-          <IconButton icon={Trash2} size="sm" className="hover:bg-rose-50 hover:text-rose-600 dark:hover:bg-rose-900/20" onClick={() => setDeleteTarget(row)} />
-        </div>
-      ),
-    },
+    { key: 'number', header: 'Proposal', sortable: true, render: (r) => <span className="font-medium text-ink-800 dark:text-ink-100">{r.number}<span className="ml-1.5 text-[10px] font-semibold text-brand-600">v{r.version}</span></span> },
+    { key: 'title', header: 'Title', sortable: true, render: (r) => <span className="line-clamp-1 max-w-[240px]">{r.title}</span> },
+    { key: 'customerName', header: 'Client', sortable: true },
+    { key: 'dealId', header: 'Deal', render: (r) => (r.dealId ? <button onClick={(e) => { e.stopPropagation(); navigate(`/deals/${r.dealId}`) }} className="text-brand-600 hover:underline dark:text-brand-400">{r.dealId}</button> : <span className="text-ink-400">—</span>) },
+    { key: 'value', header: 'Value', sortable: true, render: (r) => <span className="font-medium">{formatCurrency(r.value)}</span> },
+    { key: 'createdDate', header: 'Created', sortable: true, render: (r) => formatDate(r.createdDate) },
+    { key: 'validUntil', header: 'Expiry', sortable: true, render: (r) => <span className={PR_OPEN.includes(r.status) && r.validUntil < todayStr() ? 'font-medium text-rose-500' : ''}>{formatDate(r.validUntil)}</span> },
+    { key: 'status', header: 'Status', render: (r) => <StatusBadge status={r.status} /> },
+    { key: 'ownerId', header: 'Owner', render: (r) => getUserById(r.ownerId)?.name.split(' ')[0] || '—' },
+    { key: 'actions', header: '', headerClassName: 'w-10', render: (r) => <div className="flex justify-end" onClick={(e) => e.stopPropagation()}><IconButton icon={Eye} size="sm" aria-label="Open" onClick={() => navigate(`/proposals/${r.id}`)} /></div> },
   ]
 
-  const createProposal = (data) => {
-    setSaving(true)
-    const customer = getCustomerById(data.customerId)
-    crud.create({
-      id: genId('PRP'),
-      title: data.title,
-      customerId: data.customerId,
-      customerName: customer?.name || '',
-      service: data.service,
-      value: Number(data.value) || 0,
-      sections: [
-        { heading: 'Executive Summary', body: `This proposal outlines our recommended approach to deliver ${data.service.toLowerCase()} for ${customer?.name || 'the client'}, aligned with your growth objectives and timeline.` },
-        { heading: 'Scope of Work', body: `Discovery, design, implementation, testing and go-live support for ${data.service.toLowerCase()}, delivered by a dedicated project team.` },
-        { heading: 'Timeline', body: 'Estimated delivery within 6-8 weeks from kickoff, in milestone-based phases.' },
-        { heading: 'Investment', body: 'Detailed pricing is available in the attached commercial quotation.' },
-      ],
-      assignedTo: data.assignedTo,
-      createdDate: new Date().toISOString().slice(0, 10),
-      validUntil: data.validUntil,
-      status: 'Draft',
-    }).then(() => {
-      setSaving(false)
-      setCreateOpen(false)
-      toast('Proposal created successfully.', { type: 'success' })
-    })
-  }
-
-  const confirmDelete = () => {
-    crud.remove(deleteTarget.id).then(() => {
-      toast(`Proposal "${deleteTarget.title}" deleted.`, { type: 'success' })
-      setDeleteTarget(null)
-    })
+  const exportCsv = () => {
+    downloadCsv('proposals.csv', crud.allFiltered, [
+      { label: 'Proposal #', value: 'number' }, { label: 'Version', value: 'version' }, { label: 'Title', value: 'title' }, { label: 'Client', value: 'customerName' },
+      { label: 'Deal', value: 'dealId' }, { label: 'Value', value: 'value' }, { label: 'Created', value: 'createdDate' }, { label: 'Expiry', value: 'validUntil' }, { label: 'Status', value: 'status' },
+    ])
+    toast(`Exported ${crud.allFiltered.length} proposals.`, { type: 'success' })
   }
 
   return (
     <div>
       <PageHeader
         title="Proposals"
-        description="Build and send polished proposals to prospective clients."
-        actions={<Button icon={Plus} onClick={() => setCreateOpen(true)}>New Proposal</Button>}
+        description="Solution proposals created from deals — present scope, approach and indicative pricing, then turn them into quotations."
+        actions={<>
+          <Button variant="secondary" icon={Settings2} onClick={() => navigate('/proposal-templates')}>Manage Templates</Button>
+          <Button variant="secondary" icon={Download} onClick={exportCsv}>Export</Button>
+          {hasPermission('Proposals', 'create') && <Button icon={Plus} onClick={() => setPickerOpen(true)}>New Proposal</Button>}
+        </>}
       />
 
+      <div className="mb-5 grid grid-cols-2 gap-4 sm:grid-cols-4 2xl:grid-cols-8">
+        <StatCard label="Total" value={stats.total} icon={FileSignature} tone="brand" />
+        <StatCard label="Draft" value={stats.draft} icon={FilePen} tone="ink" />
+        <StatCard label="Internal review" value={stats.review} icon={SearchCheck} tone="amber" />
+        <StatCard label="Sent / open" value={stats.sent} icon={Send} tone="sky" />
+        <StatCard label="Accepted" value={stats.accepted} icon={CheckCircle2} tone="emerald" />
+        <StatCard label="Rejected" value={stats.rejected} icon={XCircle} tone="rose" />
+        <StatCard label="Expired" value={stats.expired} icon={Timer} tone="ink" />
+        <StatCard label="Total value" value={formatCurrency(stats.totalValue, { compact: true })} icon={IndianRupee} tone="violet" />
+      </div>
+      <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <StatCard label="Accepted proposal value" value={formatCurrency(stats.acceptedValue, { compact: true })} icon={CheckCircle2} tone="emerald" />
+        <StatCard label="Pending proposal value" value={formatCurrency(stats.pendingValue, { compact: true })} icon={Hourglass} tone="amber" />
+      </div>
+
       <div className="mb-4 flex flex-wrap items-center gap-2.5">
-        <SearchBar value={crud.search} onChange={crud.setSearch} placeholder="Search by title, customer, service…" className="w-full max-w-xs" />
-        <FilterToggleButton active={filtersOpen} count={Object.values(crud.filters).filter((v) => v && v !== 'all').length} onClick={() => setFiltersOpen((o) => !o)} />
-        {selected.length > 0 && <span className="text-xs text-ink-500 dark:text-ink-400">{selected.length} selected</span>}
+        <SearchBar value={crud.search} onChange={crud.setSearch} placeholder="Search by number, title, client or deal…" className="w-full max-w-xs" />
+        <FilterToggleButton active={filtersOpen} count={active} onClick={() => setFiltersOpen((o) => !o)} />
       </div>
       {filtersOpen && (
-        <div className="mb-4">
-          <FilterPanel filters={filterDefs} values={crud.filters} onChange={(k, v) => crud.setFilters((f) => ({ ...f, [k]: v }))} onClear={() => crud.setFilters({})} />
+        <div className="mb-4 flex flex-wrap items-center gap-2">
+          <input value={f.number} onChange={(e) => set({ number: e.target.value })} placeholder="Proposal no." aria-label="Proposal number" className={`${sel} w-32`} />
+          <select value={f.status} onChange={(e) => set({ status: e.target.value })} aria-label="Status" className={sel}><option value="all">All statuses</option>{PROPOSAL_STATUSES.map((s) => <option key={s}>{s}</option>)}</select>
+          <select value={f.company} onChange={(e) => set({ company: e.target.value })} aria-label="Company" className={sel}><option value="all">All companies</option>{companies.map(([id, n]) => <option key={id} value={id}>{n}</option>)}</select>
+          <select value={f.contact} onChange={(e) => set({ contact: e.target.value })} aria-label="Client contact" className={sel}><option value="all">All clients</option>{contacts.map(([id, n]) => <option key={id} value={id}>{n}</option>)}</select>
+          <select value={f.deal} onChange={(e) => set({ deal: e.target.value })} aria-label="Deal" className={sel}><option value="all">All deals</option>{deals.map(([id, n]) => <option key={id} value={id}>{n}</option>)}</select>
+          <select value={f.owner} onChange={(e) => set({ owner: e.target.value })} aria-label="Owner" className={sel}><option value="all">All owners</option>{salesUsers().map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select>
+          <select value={f.expiry} onChange={(e) => set({ expiry: e.target.value })} aria-label="Expiry" className={sel}><option value="all">Any expiry</option><option value="valid">Still valid</option><option value="week">Expiring in 7 days</option><option value="month">Expiring in 30 days</option><option value="expired">Expired</option></select>
+          <label className="flex items-center gap-1 text-xs text-ink-500">From <input type="date" value={f.from} max={f.to || undefined} onChange={(e) => set({ from: e.target.value })} className={sel} /></label>
+          <label className="flex items-center gap-1 text-xs text-ink-500">To <input type="date" value={f.to} min={f.from || undefined} onChange={(e) => set({ to: e.target.value })} className={sel} /></label>
+          <input type="number" min="0" value={f.min} onChange={(e) => set({ min: e.target.value })} placeholder="Min value" aria-label="Minimum value" className={`${sel} w-28`} />
+          <input type="number" min="0" value={f.max} onChange={(e) => set({ max: e.target.value })} placeholder="Max value" aria-label="Maximum value" className={`${sel} w-28`} />
+          {active > 0 && <Button variant="ghost" size="sm" onClick={clear}>Clear ({active})</Button>}
         </div>
       )}
 
       <DataTable
-        columns={columns}
-        data={crud.items}
-        loading={crud.loading}
-        onRowClick={(row) => navigate(`/proposals/${row.id}`)}
-        selectable
-        selected={selected}
-        onSelectChange={setSelected}
-        sort={crud.sort}
-        onSortChange={crud.setSort}
-        page={crud.page}
-        totalPages={crud.totalPages}
-        onPageChange={crud.setPage}
-        total={crud.total}
-        pageSize={10}
-        emptyTitle="No proposals found"
-        emptyDescription="Try adjusting your search or filters, or create a new proposal to get started."
+        columns={columns} data={crud.items} loading={crud.loading} onRowClick={(r) => navigate(`/proposals/${r.id}`)}
+        sort={crud.sort} onSortChange={crud.setSort} page={crud.page} totalPages={crud.totalPages} onPageChange={crud.setPage} total={crud.total} pageSize={10}
+        emptyTitle="No proposals found" emptyDescription="Adjust your search or filters — or start a new proposal from an open deal."
       />
 
-      <FormModal
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        title="New Proposal"
-        description="Create a client-ready proposal document."
-        submitLabel="Create Proposal"
-        loading={saving}
-        onSubmit={createProposal}
-        defaultValues={{ customerId: CUSTOMERS[0]?.id, service: SERVICES[0], assignedTo: reps[0]?.id, validUntil: new Date(Date.now() + 20 * 86400000).toISOString().slice(0, 10) }}
-        fields={[
-          { name: 'title', label: 'Proposal title', required: true, span: 2 },
-          { name: 'customerId', label: 'Customer', type: 'select', options: CUSTOMERS.map((c) => ({ value: c.id, label: c.name })), required: true, span: 1 },
-          { name: 'service', label: 'Service', type: 'select', options: SERVICES.map((s) => ({ value: s, label: s })), required: true, span: 1 },
-          { name: 'value', label: 'Proposal value (₹)', type: 'number', required: true, span: 1 },
-          { name: 'validUntil', label: 'Valid until', type: 'date', required: true, span: 1 },
-          { name: 'assignedTo', label: 'Assigned to', type: 'select', options: reps.map((r) => ({ value: r.id, label: r.name })), required: true, span: 2 },
-        ]}
-      />
-
-      <ConfirmDialog
-        open={!!deleteTarget}
-        onClose={() => setDeleteTarget(null)}
-        onConfirm={confirmDelete}
-        title="Delete this proposal?"
-        description={`"${deleteTarget?.title}" will be permanently removed. This cannot be undone.`}
-        confirmLabel="Delete Proposal"
-      />
+      <DealPicker open={pickerOpen} onClose={() => setPickerOpen(false)} onPick={(d) => { setPickerOpen(false); navigate(`/proposals/new?dealId=${d.id}`) }} />
     </div>
   )
 }

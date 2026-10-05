@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react'
+import { useProducts, useServiceOptions } from '../../hooks/useProducts'
+import { productByName } from '../../utils/productRules'
 import { useForm } from 'react-hook-form'
 import { AlertTriangle, UserSquare2, Eye, Plus, Copy } from 'lucide-react'
 import { Modal } from '../../components/common/Modal'
@@ -7,7 +9,7 @@ import { Button } from '../../components/common/Button'
 import { Badge } from '../../components/common/Badge'
 import {
   ENQUIRY_SOURCES, ENQUIRY_TYPES, ENQUIRY_PRIORITIES, ASSIGNED_TEAMS, REQUIREMENT_TYPES,
-  PREFERRED_CONTACT_METHODS, SERVICES, INDUSTRIES, CITIES,
+  PREFERRED_CONTACT_METHODS, INDUSTRIES, CITIES,
 } from '../../data/constants'
 import { salesUsers } from '../../data/users'
 import { findDuplicates, findExistingCustomer } from './enquiryActions'
@@ -27,11 +29,14 @@ function Section({ children }) {
  * duplicate + existing-customer detection (§10-11) before actually creating the record, and
  * surfaces a warning panel with real actions rather than silently proceeding.
  */
-export function EnquiryFormModal({ open, onClose, mode = 'create', enquiry, saving, onSubmit, onViewMatch }) {
+export function EnquiryFormModal({ open, onClose, mode = 'create', enquiry, saving, onSubmit: onSubmitProp, onViewMatch }) {
   const { register, handleSubmit, reset, formState: { errors } } = useForm({ defaultValues: {} })
   const [checking, setChecking] = useState(false)
   const [warning, setWarning] = useState(null) // { matches, existingCustomer, pendingData }
   const reps = salesUsers()
+  const { products } = useProducts()
+  const serviceNames = useServiceOptions(enquiry?.interestedService || enquiry?.interestedProduct)
+  const onSubmit = (d, extra) => onSubmitProp({ ...d, productId: productByName(products, d.interestedService || d.interestedProduct)?.id || null }, extra)
 
   useEffect(() => {
     if (!open) return
@@ -186,10 +191,10 @@ export function EnquiryFormModal({ open, onClose, mode = 'create', enquiry, savi
 
         <Section>Requirement</Section>
         <FormField label="Interested Product">
-          <Select {...register('interestedProduct')}><option value="">Select…</option>{SERVICES.map((s) => <option key={s} value={s}>{s}</option>)}</Select>
+          <Select {...register('interestedProduct')}><option value="">Select…</option>{serviceNames.map((s) => <option key={s} value={s}>{s}</option>)}</Select>
         </FormField>
         <FormField label="Interested Service">
-          <Select {...register('interestedService')}><option value="">Select…</option>{SERVICES.map((s) => <option key={s} value={s}>{s}</option>)}</Select>
+          <Select {...register('interestedService')}><option value="">Select…</option>{serviceNames.map((s) => <option key={s} value={s}>{s}</option>)}</Select>
         </FormField>
         <FormField label="Category">
           <Select {...register('category')}><option value="">Select…</option>{INDUSTRIES.map((s) => <option key={s} value={s}>{s}</option>)}</Select>

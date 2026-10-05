@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { LogActivityButton } from '../Activities/LogActivityButton'
+import { RecordTasksButton } from '../Tasks/RecordTasksButton'
+import { belongsTo } from '../../utils/activityLinks'
+import { useNavigate, useParams, Link } from 'react-router-dom'
 import {
   ArrowLeft, Phone, Mail, MessageCircle, StickyNote, CalendarClock,
   Building2, IndianRupee, Gauge, Clock, Globe, Briefcase, MapPin,
@@ -63,7 +66,7 @@ function InfoRow({ icon: Icon, label, value, href }) {
       <div className="min-w-0">
         <p className="text-xs text-ink-400">{label}</p>
         {href && value ? (
-          <a href={href} target={href.startsWith('http') ? '_blank' : undefined} rel="noreferrer" className="truncate text-sm font-medium text-brand-600 hover:underline dark:text-brand-400">{value}</a>
+          (href.startsWith('/') ? <Link to={href} className="truncate text-sm font-medium text-brand-600 hover:underline dark:text-brand-400">{value}</Link> : <a href={href} target={href.startsWith('http') ? '_blank' : undefined} rel="noreferrer" className="truncate text-sm font-medium text-brand-600 hover:underline dark:text-brand-400">{value}</a>)
         ) : (
           <p className="truncate text-sm font-medium text-ink-800 dark:text-ink-100">{value || '—'}</p>
         )}
@@ -107,7 +110,7 @@ export default function LeadDetail() {
   // instant it appeared. Same flicker class as the earlier Settings→Appearance bug.
   const load = () => api.get(`/leads/${id}`).then((res) => setLead(res.data)).catch(() => setLead(null))
   const loadActivities = () => api.get('/activities', { params: { all: true } }).then((res) => {
-    setActivities(res.data.filter((a) => a.relatedType === 'Lead' && a.relatedId === id).sort((a, b) => new Date(b.date) - new Date(a.date)))
+    setActivities(res.data.filter((a) => belongsTo(a, 'Lead', id)).sort((a, b) => new Date(b.date) - new Date(a.date)))
   })
   useEffect(() => {
     setLoading(true)
@@ -197,6 +200,8 @@ export default function LeadDetail() {
           {canEdit && !isClosed && <Button variant="secondary" icon={Pencil} onClick={() => setEditOpen(true)}>Edit</Button>}
           {canEdit && !isClosed && <Button variant="secondary" icon={UserCog} onClick={() => setAssignOpen(true)}>{lead.assignedTo ? 'Reassign' : 'Assign'}</Button>}
           {canEdit && !isClosed && <Button variant="secondary" icon={CalendarClock} onClick={() => setFollowUpOpen(true)}>Add Follow-up</Button>}
+          {canEdit && <LogActivityButton type="Lead" id={lead.id} label={lead.name} onLogged={loadActivities} />}
+          <RecordTasksButton type="Lead" id={lead.id} label={lead.name} />
           {canEdit && !isClosed && <Button variant="secondary" icon={Video} onClick={() => setMeetingOpen(true)}>Schedule Meeting</Button>}
           {/* Qualified is the only stage where Convert to Deal is the primary next action — it
               never competes with Qualify Lead (mutually exclusive by canTransition) or with any
@@ -271,7 +276,7 @@ export default function LeadDetail() {
               <InfoRow icon={Briefcase} label="Industry" value={lead.industry} />
               <InfoRow icon={MapPin} label="Location" value={lead.location} />
               <InfoRow icon={Globe} label="Website" value={lead.website} href={lead.website ? (lead.website.startsWith('http') ? lead.website : `https://${lead.website}`) : null} />
-              <InfoRow icon={Gauge} label="Interested Service" value={lead.service} />
+              <InfoRow icon={Gauge} label="Interested Service" value={lead.service} href={lead.productId ? `/products/${lead.productId}` : null} />
               <InfoRow icon={IndianRupee} label="Budget" value={formatCurrency(lead.budget)} />
               <InfoRow icon={Clock} label="Last Contacted" value={lead.lastContactedDate ? formatDateTime(lead.lastContactedDate) : 'Not yet contacted'} />
             </div>

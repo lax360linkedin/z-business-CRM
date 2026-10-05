@@ -15,6 +15,7 @@ import { GlobalSearchModal } from './GlobalSearchModal'
 import { api } from '../../api/mockServer'
 import { ROLES } from '../../data/constants'
 import { timeAgo } from '../../utils/format'
+import { relatedHref } from '../../utils/activityRules'
 
 export function Header() {
   const { theme, toggleTheme } = useTheme()
@@ -51,6 +52,12 @@ export function Header() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
+
+  const openNotification = (n) => {
+    if (!n.read) api.put(`/notifications/${n.id}`, { read: true }).then(loadNotifications)
+    const href = n.relatedType === 'Task' ? `/tasks/${n.relatedId}` : relatedHref(n.relatedType, n.relatedId)
+    if (n.relatedId && href) navigate(href)
+  }
 
   const markAllRead = () => {
     api.post('/notifications/read-all').then(loadNotifications)
@@ -103,7 +110,7 @@ export function Header() {
           </div>
           <div className="scrollbar-thin max-h-80 overflow-y-auto">
             {notifications.slice(0, 8).map((n) => (
-              <div key={n.id} className="flex items-start gap-2.5 px-3.5 py-2.5 hover:bg-ink-50 dark:hover:bg-ink-800">
+              <div key={n.id} onClick={() => openNotification(n)} className="flex cursor-pointer items-start gap-2.5 px-3.5 py-2.5 hover:bg-ink-50 dark:hover:bg-ink-800">
                 {!n.read && <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-brand-500" />}
                 <div className={n.read ? 'pl-3.5' : ''}>
                   <p className="text-xs font-medium text-ink-700 dark:text-ink-200">{n.type}</p>

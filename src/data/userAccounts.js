@@ -42,9 +42,6 @@ export const USER_ACCOUNTS = USERS.map((u, i) => {
     // Excludes index 0 (the primary Super Admin demo account) so the most commonly used
     // demo login isn't interrupted by the forced-change flow; still exercised by others.
     forcePasswordChange: i > 0 && i % 6 === 0,
-    // MFA enabled on the two highest-privilege demo accounts, so the OTP step is easy to
-    // find without being forced on every single login.
-    mfaEnabled: i === 0 || i === 1,
     failedAttempts: 0,
     lockedUntil: null,
     // Single authoritative credential record — this `password` field (not a copy) is what

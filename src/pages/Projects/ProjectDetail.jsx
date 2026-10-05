@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
 import { Building2, Plus, FolderKanban, ListChecks, FileText as FileTextIcon, Wallet, MessageSquare } from 'lucide-react'
 import { PageHeader } from '../../components/common/PageHeader'
@@ -55,7 +55,7 @@ export default function ProjectDetail() {
   useEffect(() => {
     if (!project) return
     api.get('/tasks', { params: { all: true } }).then((res) =>
-      setTasks(res.data.filter((t) => t.relatedType === 'Project' && t.relatedId === project.id)))
+      setTasks(res.data.filter((t) => (t.relatedType === 'Project' && t.relatedId === project.id) || t.links?.projectId === project.id)))
     api.get('/expenses', { params: { all: true } }).then((res) =>
       setExpenses(res.data.filter((e) => e.projectId === project.id)))
     api.get('/activities', { params: { all: true } }).then((res) =>
@@ -159,6 +159,12 @@ export default function ProjectDetail() {
             <p className="text-xs text-ink-400">Budget</p>
             <p className="text-sm font-medium text-ink-800 dark:text-ink-100">{formatCurrency(project.budget)}</p>
           </div>
+          {project.productId && (
+            <div>
+              <p className="text-xs text-ink-400">Product / Service</p>
+              <Link to={`/products/${project.productId}`} className="text-sm font-medium text-brand-600 hover:underline dark:text-brand-400">{String(project.name).split(' — ')[0]}</Link>
+            </div>
+          )}
         </div>
         <div className="mt-4 flex items-center gap-3">
           <div className="h-2 flex-1 rounded-full bg-ink-100 dark:bg-ink-800">

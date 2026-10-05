@@ -1,5 +1,8 @@
 import { resetSeed, pick, randInt, daysFromNow } from '../utils/generators'
-import { TASK_STATUSES, PRIORITIES } from './constants'
+import { PRIORITIES } from './constants'
+
+// Seed uses the original four-state vocabulary; the task migration maps it onto the current workflow.
+const TASK_STATUSES = ['Pending', 'In Progress', 'Completed', 'Cancelled']
 import { LEADS } from './leads'
 import { DEALS } from './deals'
 import { PROJECTS } from './projects'

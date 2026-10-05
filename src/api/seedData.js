@@ -7,6 +7,7 @@ import { ENQUIRIES } from '../data/enquiries'
 import { CUSTOMERS } from '../data/customers'
 import { DEALS } from '../data/deals'
 import { QUOTATIONS } from '../data/quotations'
+import { QUOTATION_TEMPLATES } from '../data/quotationTemplates'
 import { SALES_ORDERS } from '../data/salesOrders'
 import { PROPOSALS } from '../data/proposals'
 import { PRODUCTS } from '../data/products'
@@ -32,6 +33,7 @@ export const COLLECTIONS = {
   customers: CUSTOMERS,
   deals: DEALS,
   quotations: QUOTATIONS,
+  quotationTemplates: QUOTATION_TEMPLATES,
   salesOrders: SALES_ORDERS,
   proposals: PROPOSALS,
   products: PRODUCTS,
@@ -46,4 +48,8 @@ export const COLLECTIONS = {
   activities: ACTIVITIES,
   tasks: TASKS,
   notifications: NOTIFICATIONS,
+  // Server-side auth state (see src/utils/sessionStore.js) — always starts empty; nothing
+  // seeds a fake logged-in session or pre-trusted device.
+  sessions: [],
+  trustedDevices: [],
 }

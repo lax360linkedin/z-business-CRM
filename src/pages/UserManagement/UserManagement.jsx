@@ -143,7 +143,6 @@ export default function UserManagement() {
       department: data.department,
       status: data.status,
       forcePasswordChange: data.forcePasswordChange,
-      mfaEnabled: false,
       failedAttempts: 0,
       lockedUntil: null,
       sendWelcomeEmail: data.sendWelcomeEmail,

@@ -1,10 +1,16 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useParams } from 'react-router-dom'
+import { productByName } from '../../utils/productRules'
+import { useProducts, useServiceOptions, useAllServiceNames } from '../../hooks/useProducts'
+import { LogActivityButton } from '../Activities/LogActivityButton'
+import { RecordTasksButton } from '../Tasks/RecordTasksButton'
+import { belongsTo } from '../../utils/activityLinks'
+import { useNavigate, useParams, Link } from 'react-router-dom'
 import {
   ArrowLeft, Phone, Mail, MessageCircle, StickyNote, CalendarClock,
   Building2, IndianRupee, Gauge, Clock, Briefcase, User, MapPin,
   Pencil, UserSquare2, Contact2, Inbox, Radio, Target,
   MoreVertical, Handshake, Video, FileText, Trash2, Scale, Ban, Trophy,
+  FileSignature,
 } from 'lucide-react'
 import { Breadcrumbs } from '../../components/common/Breadcrumbs'
 import { StatusBadge, PriorityBadge } from '../../components/common/Badge'
@@ -22,7 +28,7 @@ import { useAuth } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
 import { getUserById, salesUsers } from '../../data/users'
 import { formatCurrency, formatDate, formatDateTime } from '../../utils/format'
-import { SERVICES, PRIORITIES, LEAD_QUALIFICATION_TIMELINES } from '../../data/constants'
+import { PRIORITIES, LEAD_QUALIFICATION_TIMELINES } from '../../data/constants'
 import { isDealClosed, isDealLost } from '../../data/dealWorkflow'
 import { changeDealStage, markDealLost, createQuotationFromDeal } from './dealActions'
 import { ChangeStageModal } from './ChangeStageModal'
@@ -57,7 +63,7 @@ function InfoRow({ icon: Icon, label, value, href }) {
       <div className="min-w-0">
         <p className="text-xs text-ink-400">{label}</p>
         {href && value ? (
-          <a href={href} target={href.startsWith('http') ? '_blank' : undefined} rel="noreferrer" className="truncate text-sm font-medium text-brand-600 hover:underline dark:text-brand-400">{value}</a>
+          (href.startsWith('/') ? <Link to={href} className="truncate text-sm font-medium text-brand-600 hover:underline dark:text-brand-400">{value}</Link> : <a href={href} target={href.startsWith('http') ? '_blank' : undefined} rel="noreferrer" className="truncate text-sm font-medium text-brand-600 hover:underline dark:text-brand-400">{value}</a>)
         ) : (
           <p className="truncate text-sm font-medium text-ink-800 dark:text-ink-100">{value || '—'}</p>
         )}
@@ -100,6 +106,7 @@ export default function DealDetail() {
   const [customer, setCustomer] = useState(null)
   const [quotations, setQuotations] = useState([])
   const [salesOrders, setSalesOrders] = useState([])
+  const [proposals, setProposals] = useState([])
   const [invoices, setInvoices] = useState([])
   const [payments, setPayments] = useState([])
   const [loading, setLoading] = useState(true)
@@ -118,7 +125,7 @@ export default function DealDetail() {
 
   const load = () => api.get(`/deals/${id}`).then((res) => setDeal(res.data)).catch(() => setDeal(null))
   const loadActivities = () => api.get('/activities', { params: { all: true } }).then((res) => {
-    setActivities(res.data.filter((a) => a.relatedType === 'Deal' && a.relatedId === id).sort((a, b) => new Date(b.date) - new Date(a.date)))
+    setActivities(res.data.filter((a) => belongsTo(a, 'Deal', id)).sort((a, b) => new Date(b.date) - new Date(a.date)))
   })
 
   useEffect(() => {
@@ -139,15 +146,17 @@ export default function DealDetail() {
       deal.sourceEnquiryId ? api.get(`/enquiries/${deal.sourceEnquiryId}`).then((r) => r.data).catch(() => null) : Promise.resolve(null),
       deal.customerId ? api.get(`/customers/${deal.customerId}`).then((r) => r.data).catch(() => null) : Promise.resolve(null),
       api.get('/quotations', { params: { all: true } }),
-      api.get('/sales-orders', { params: { all: true } }).catch(() => ({ data: [] })),
+      api.get('/salesOrders', { params: { all: true } }).catch(() => ({ data: [] })),
       api.get('/invoices', { params: { all: true } }),
       api.get('/payments', { params: { all: true } }),
-    ]).then(([c, comp, l, e, cust, quotesRes, ordersRes, invoicesRes, paymentsRes]) => {
+      api.get('/proposals', { params: { all: true } }).catch(() => ({ data: [] })),
+    ]).then(([c, comp, l, e, cust, quotesRes, ordersRes, invoicesRes, paymentsRes, proposalsRes]) => {
       setContact(c); setCompany(comp); setSourceLead(l); setSourceEnquiry(e); setCustomer(cust)
       setQuotations(quotesRes.data.filter((q) => q.dealId === deal.id))
-      setSalesOrders(ordersRes.data.filter((so) => so.dealId === deal.id || (deal.customerId && so.customerId === deal.customerId)))
-      setInvoices(invoicesRes.data.filter((inv) => inv.dealId === deal.id || (deal.customerId && inv.customerId === deal.customerId)))
-      setPayments(paymentsRes.data.filter((p) => deal.customerId && p.customerId === deal.customerId))
+      setProposals(proposalsRes.data.filter((p) => p.dealId === deal.id))
+      setSalesOrders(ordersRes.data.filter((so) => so.dealId === deal.id))
+      setInvoices(invoicesRes.data.filter((inv) => inv.dealId === deal.id))
+      setPayments(paymentsRes.data.filter((p) => invoicesRes.data.some((inv) => inv.dealId === deal.id && inv.id === p.invoiceId)))
     })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deal?.id, deal?.contactId, deal?.companyId, deal?.leadId, deal?.sourceEnquiryId, deal?.customerId])
@@ -192,9 +201,11 @@ export default function DealDetail() {
     })
   }
 
+  const { products } = useProducts()
+  const serviceNames = useServiceOptions(deal?.service)
   const saveEdit = (data) => {
     setSaving(true)
-    api.put(`/deals/${deal.id}`, { ...data, value: Number(data.value) || 0, budget: Number(data.budget) || 0 }).then(() => {
+    api.put(`/deals/${deal.id}`, { ...data, productId: productByName(products, data.service)?.id || null, value: Number(data.value) || 0, budget: Number(data.budget) || 0 }).then(() => {
       setSaving(false); setEditOpen(false); toast('Deal updated.', { type: 'success' }); refresh()
     })
   }
@@ -221,8 +232,11 @@ export default function DealDetail() {
           <Button variant="secondary" icon={ArrowLeft} onClick={() => navigate('/deals')}>Back</Button>
           {canEdit && !isClosed && <Button variant="secondary" icon={Pencil} onClick={() => setEditOpen(true)}>Edit Deal</Button>}
           {canEdit && !isClosed && <Button variant="secondary" icon={Gauge} onClick={() => setStageOpen(true)}>Change Stage</Button>}
+          {hasPermission('Proposals', 'create') && !isClosed && <Button variant="secondary" icon={FileSignature} onClick={() => navigate(`/proposals/new?dealId=${deal.id}`)}>Create Proposal</Button>}
           {canEdit && <Button variant="secondary" icon={FileText} onClick={doCreateQuotation} loading={saving}>Create Quotation</Button>}
           {canEdit && <Button variant="secondary" icon={CalendarClock} onClick={() => setFollowUpOpen(true)}>Add Follow-up</Button>}
+          {canEdit && <LogActivityButton type="Deal" id={deal.id} label={deal.name} onLogged={loadActivities} />}
+          <RecordTasksButton type="Deal" id={deal.id} label={deal.name} />
           {canEdit && <Button variant="secondary" icon={StickyNote} onClick={() => setNoteOpen(true)}>Add Note</Button>}
           <Dropdown align="right" trigger={<Button variant="secondary" icon={MoreVertical}>More Actions</Button>}>
             {canDelete && <DropdownItem icon={Trash2} danger onClick={() => setDeleteOpen(true)}>Delete Deal</DropdownItem>}
@@ -260,14 +274,14 @@ export default function DealDetail() {
               <InfoRow icon={CalendarClock} label="Expected Close Date" value={formatDate(deal.expectedClosingDate)} />
               <InfoRow icon={Clock} label="Created Date" value={formatDate(deal.createdDate)} />
               <InfoRow icon={User} label="Assigned Owner" value={owner?.name} />
-              <InfoRow icon={Briefcase} label="Service" value={deal.service} />
+              <InfoRow icon={Briefcase} label="Service" value={deal.service} href={deal.productId ? `/products/${deal.productId}` : null} />
             </div>
           </div>
 
           <div className="rounded-2xl border border-ink-100 bg-white p-5 dark:border-ink-800 dark:bg-ink-900">
             <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-ink-400">Business Requirement</p>
             <div className="grid grid-cols-2 gap-4">
-              <InfoRow icon={Briefcase} label="Product / Service" value={deal.service} />
+              <InfoRow icon={Briefcase} label="Product / Service" value={deal.service} href={deal.productId ? `/products/${deal.productId}` : null} />
               <InfoRow icon={IndianRupee} label="Budget" value={deal.budget ? formatCurrency(deal.budget) : null} />
               <InfoRow icon={Clock} label="Expected Purchase Timeline" value={deal.expectedPurchaseTimeline} />
               <InfoRow icon={Target} label="Competitor" value={deal.competitor} />
@@ -400,15 +414,18 @@ export default function DealDetail() {
             </div>
           )}
 
-          {(quotations.length > 0 || salesOrders.length > 0 || invoices.length > 0 || payments.length > 0) && (
+          {(proposals.length > 0 || quotations.length > 0 || salesOrders.length > 0 || invoices.length > 0 || payments.length > 0) && (
             <div className="rounded-2xl border border-ink-100 bg-white p-5 dark:border-ink-800 dark:bg-ink-900">
               <p className="mb-2.5 text-xs font-semibold uppercase tracking-wide text-ink-400">Related Records</p>
               <div className="space-y-2">
+                {proposals.map((p) => (
+                  <RecordRow key={p.id} label={`Proposal ${p.number} – v${p.version}`} value={`${p.status} · ${formatCurrency(p.value, { compact: true })}`} onClick={() => navigate(`/proposals/${p.id}`)} />
+                ))}
                 {quotations.map((q) => (
                   <RecordRow key={q.id} label={`Quotation ${q.number}`} value={`${q.status} · ${formatCurrency(q.amount, { compact: true })}`} onClick={() => navigate(`/quotations/${q.id}`)} />
                 ))}
                 {salesOrders.map((so) => (
-                  <RecordRow key={so.id} label={`Sales Order ${so.id}`} value={so.status} onClick={() => navigate(`/sales-orders/${so.id}`)} />
+                  <RecordRow key={so.id} label={`Sales Order ${so.number}`} value={so.status} onClick={() => navigate(`/sales-orders/${so.id}`)} />
                 ))}
                 {invoices.map((inv) => (
                   <RecordRow key={inv.id} label={`Invoice ${inv.number}`} value={`${inv.status} · ${formatCurrency(inv.amount, { compact: true })}`} onClick={() => navigate(`/invoices/${inv.id}`)} />
@@ -466,7 +483,7 @@ export default function DealDetail() {
         defaultValues={deal}
         fields={[
           { name: 'name', label: 'Deal name', required: true, span: 2 },
-          { name: 'service', label: 'Product / Service', type: 'select', options: SERVICES.map((s) => ({ value: s, label: s })), required: true, span: 1 },
+          { name: 'service', label: 'Product / Service', type: 'select', options: serviceNames.map((s) => ({ value: s, label: s })), required: true, span: 1 },
           { name: 'value', label: 'Deal value (₹)', type: 'number', required: true, span: 1 },
           { name: 'priority', label: 'Priority', type: 'select', options: PRIORITIES.map((p) => ({ value: p, label: p })), required: true, span: 1 },
           { name: 'expectedClosingDate', label: 'Expected closing date', type: 'date', required: true, span: 1 },

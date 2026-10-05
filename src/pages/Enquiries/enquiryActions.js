@@ -182,6 +182,9 @@ export function findOrCreateCompany(enquiry) {
       website: '',
       city: enquiry.city || '',
       address: enquiry.address || '',
+      billingAddress: enquiry.address || '',
+      shippingAddress: enquiry.address || '',
+      gstin: '',
       revenue: 0,
       status: 'Prospect',
       createdDate: new Date().toISOString().slice(0, 10),
@@ -254,6 +257,7 @@ export function convertEnquiryToLead(enquiry, { by, byName }) {
         location: enquiry.city || '',
         source: enquiry.source,
         service: enquiry.qualification?.productInterest || enquiry.interestedService || enquiry.interestedProduct,
+        productId: enquiry.qualification?.productId || enquiry.productId || null,
         requirement: enquiry.qualification?.requirementDetailed || enquiry.requirementDescription,
         // Best-effort numeric parse of the qualification budget (a free-text string like
         // "₹2,50,000") — Lead.budget is numeric, Enquiry's isn't, so this is the one field that

@@ -9,6 +9,7 @@ import { OtpStep } from './OtpStep'
 import { useAuth, consumeExpiredFlag, lookupAssignableRoles } from '../../context/AuthContext'
 import { useToast } from '../../context/ToastContext'
 import { getEffectiveRoles } from '../../data/constants'
+import { getDeviceId } from '../../utils/deviceId'
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -47,7 +48,7 @@ export default function Login() {
     setLoading(true)
     setTimeout(() => {
       try {
-        const result = authenticate(data.email, data.password, data.role, rememberMe)
+        const result = authenticate(data.email, data.password, data.role, rememberMe, getDeviceId())
         if (result?.mfaRequired) {
           setMfaChallenge({ ...result, email: data.email })
         } else {
@@ -70,9 +71,10 @@ export default function Login() {
         subjectId={mfaChallenge.accountId}
         contactLabel={mfaChallenge.email}
         title="Two-factor verification"
+        description="We don't recognize this device (or its trust has been revoked or expired). Verify it's you, and we'll remember this device so you won't need to do this again next time."
         onBack={() => setMfaChallenge(null)}
         onVerified={() => {
-          const signedInUser = completeMfaLogin(mfaChallenge.accountId, mfaChallenge.role, mfaChallenge.rememberMe)
+          const signedInUser = completeMfaLogin(mfaChallenge.accountId, mfaChallenge.role, mfaChallenge.rememberMe, getDeviceId())
           toast(`Welcome back, ${signedInUser.name.split(' ')[0]}!`, { type: 'success' })
           navigate('/dashboard')
         }}

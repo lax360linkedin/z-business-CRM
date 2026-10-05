@@ -110,6 +110,11 @@ export function defaultPermissionsForRole(role) {
       perms[item.label] = { ...rule(sectionOf(section), item.label) }
     })
   })
+  // Tasks are everyone's daily work list — every role opens the module. What each role may then do,
+  // and whose tasks it sees, is the finer 13-permission matrix in taskRules.js (enforced by the API).
+  if (perms.Tasks && !perms.Tasks.view) perms.Tasks = { ...VIEW_ONLY }
+  // …and the calendar is where that work is scheduled; what each role sees on it is decided server-side per source module.
+  if (perms.Calendar && !perms.Calendar.view) perms.Calendar = { ...VIEW_ONLY }
   return perms
 }
 

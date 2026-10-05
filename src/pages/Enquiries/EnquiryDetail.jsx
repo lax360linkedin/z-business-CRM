@@ -1,4 +1,7 @@
 import { useEffect, useState } from 'react'
+import { LogActivityButton } from '../Activities/LogActivityButton'
+import { RecordTasksButton } from '../Tasks/RecordTasksButton'
+import { belongsTo } from '../../utils/activityLinks'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft, Phone, Mail, MessageCircle, StickyNote, CalendarClock,
@@ -109,7 +112,7 @@ export default function EnquiryDetail() {
   // modal is open mid-flow, e.g. MeetingSchedulerModal's share screen).
   const load = () => api.get(`/enquiries/${id}`).then((res) => setEnquiry(res.data)).catch(() => setEnquiry(null))
   const loadActivities = () => api.get('/activities', { params: { all: true } }).then((res) => {
-    setActivities(res.data.filter((a) => a.relatedType === 'Enquiry' && a.relatedId === id).sort((a, b) => new Date(b.date) - new Date(a.date)))
+    setActivities(res.data.filter((a) => belongsTo(a, 'Enquiry', id)).sort((a, b) => new Date(b.date) - new Date(a.date)))
   })
   useEffect(() => {
     setLoading(true)
@@ -183,6 +186,8 @@ export default function EnquiryDetail() {
           {canEdit && !isTerminal && <Button variant="secondary" icon={Pencil} onClick={() => setEditOpen(true)}>Edit</Button>}
           {canEdit && !isTerminal && <Button variant="secondary" icon={UserCog} onClick={() => setAssignOpen(true)}>{enquiry.assignedUser ? 'Reassign' : 'Assign'}</Button>}
           {canEdit && !isTerminal && <Button variant="secondary" icon={CalendarClock} onClick={() => setFollowUpOpen(true)}>Add Follow-up</Button>}
+          {canEdit && <LogActivityButton type="Enquiry" id={enquiry.id} label={enquiry.name || enquiry.id} onLogged={loadActivities} />}
+          <RecordTasksButton type="Enquiry" id={enquiry.id} label={enquiry.name || enquiry.id} />
           {canEdit && !isTerminal && <Button variant="secondary" icon={Video} onClick={() => setMeetingOpen(true)}>Schedule Meeting</Button>}
           {canEdit && canTransition(enquiry.status, 'Under Review') && (
             <Button variant="secondary" icon={Search} onClick={doStartReview}>Start Review</Button>

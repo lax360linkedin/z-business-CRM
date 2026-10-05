@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Download, Trash2, Eye, FileText, Wallet, TrendingUp, AlertTriangle } from 'lucide-react'
 import { PageHeader } from '../../components/common/PageHeader'
@@ -7,13 +7,12 @@ import { FilterPanel, FilterToggleButton } from '../../components/common/FilterP
 import { DataTable } from '../../components/common/DataTable'
 import { StatusBadge } from '../../components/common/Badge'
 import { Button, IconButton } from '../../components/common/Button'
-import { FormModal } from '../../components/common/FormModal'
 import { ConfirmDialog } from '../../components/common/ConfirmDialog'
 import { StatCard } from '../../components/common/StatCard'
 import { useCrud } from '../../hooks/useCrud'
 import { useToast } from '../../context/ToastContext'
 import { INVOICE_STATUSES } from '../../data/constants'
-import { CUSTOMERS } from '../../data/customers'
+import { api } from '../../api/mockServer'
 import { formatCurrency, formatDate, isOverdue } from '../../utils/format'
 import { downloadCsv, genId } from '../../utils/csv'
 
@@ -21,8 +20,8 @@ export default function Invoices() {
   const crud = useCrud('invoices', { searchFields: ['number', 'customerName'], pageSize: 10 })
   const navigate = useNavigate()
   const [filtersOpen, setFiltersOpen] = useState(false)
-  const [createOpen, setCreateOpen] = useState(false)
-  const [saving, setSaving] = useState(false)
+  const [customers, setCustomers] = useState([])
+  useEffect(() => { api.get('/customers', { params: { all: true } }).then((r) => setCustomers(r.data)) }, [])
   const [deleteTarget, setDeleteTarget] = useState(null)
   const { toast } = useToast()
 
@@ -39,7 +38,7 @@ export default function Invoices() {
 
   const filterDefs = [
     { key: 'status', label: 'Statuses', options: INVOICE_STATUSES.map((s) => ({ value: s, label: s })) },
-    { key: 'customerId', label: 'Customers', options: CUSTOMERS.map((c) => ({ value: c.id, label: c.name })) },
+    { key: 'customerId', label: 'Customers', options: customers.map((c) => ({ value: c.id, label: c.name })) },
   ]
 
   const columns = [
@@ -48,6 +47,12 @@ export default function Invoices() {
       render: (row) => <span className="font-medium text-ink-800 dark:text-ink-100">{row.number}</span>,
     },
     { key: 'customerName', header: 'Customer', sortable: true },
+    {
+      key: 'salesOrderNumber', header: 'Sales Order',
+      render: (row) => (row.salesOrderId ? (
+        <button onClick={(e) => { e.stopPropagation(); navigate(`/sales-orders/${row.salesOrderId}`) }} className="font-medium text-brand-600 hover:underline dark:text-brand-400">{row.salesOrderNumber || row.salesOrderId}</button>
+      ) : <span className="text-ink-400">—</span>),
+    },
     { key: 'amount', header: 'Amount', sortable: true, render: (row) => formatCurrency(row.amount) },
     { key: 'paidAmount', header: 'Paid', sortable: true, render: (row) => formatCurrency(row.paidAmount) },
     {
@@ -74,27 +79,6 @@ export default function Invoices() {
     },
   ]
 
-  const createInvoice = (data) => {
-    setSaving(true)
-    const customer = CUSTOMERS.find((c) => c.id === data.customerId)
-    crud.create({
-      id: genId('INV'),
-      number: `INV-2026-${String(Math.floor(1000 + Math.random() * 9000))}`,
-      customerId: data.customerId,
-      customerName: customer?.name || '—',
-      projectId: null,
-      amount: Number(data.amount) || 0,
-      paidAmount: 0,
-      issueDate: data.issueDate,
-      dueDate: data.dueDate,
-      status: data.status,
-    }).then(() => {
-      setSaving(false)
-      setCreateOpen(false)
-      toast('Invoice created successfully.', { type: 'success' })
-    })
-  }
-
   const confirmDelete = () => {
     crud.remove(deleteTarget.id).then(() => {
       toast(`Invoice "${deleteTarget.number}" deleted.`, { type: 'success' })
@@ -111,18 +95,15 @@ export default function Invoices() {
     toast(`Exported ${crud.allFiltered.length} invoices.`, { type: 'success' })
   }
 
-  const today = new Date().toISOString().slice(0, 10)
-  const dueDefault = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10)
-
   return (
     <div>
       <PageHeader
         title="Invoices"
-        description="Manage billing and track invoices across every customer."
+        description="Invoices are raised from confirmed sales orders — track billing, payments and balances across every customer."
         actions={
           <>
             <Button variant="secondary" icon={Download} onClick={handleExport}>Export</Button>
-            <Button icon={Plus} onClick={() => setCreateOpen(true)}>Create Invoice</Button>
+            <Button icon={Plus} onClick={() => navigate('/sales-orders')}>Create from Sales Order</Button>
           </>
         }
       />
@@ -158,24 +139,6 @@ export default function Invoices() {
         pageSize={10}
         emptyTitle="No invoices found"
         emptyDescription="Try adjusting your search or filters, or create a new invoice to get started."
-      />
-
-      <FormModal
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        title="Create Invoice"
-        description="Generate a new invoice for a customer."
-        submitLabel="Create Invoice"
-        loading={saving}
-        onSubmit={createInvoice}
-        defaultValues={{ customerId: CUSTOMERS[0]?.id, status: 'Draft', issueDate: today, dueDate: dueDefault }}
-        fields={[
-          { name: 'customerId', label: 'Customer', type: 'select', options: CUSTOMERS.map((c) => ({ value: c.id, label: c.name })), required: true, span: 2 },
-          { name: 'amount', label: 'Amount (₹)', type: 'number', required: true, span: 1 },
-          { name: 'status', label: 'Status', type: 'select', options: INVOICE_STATUSES.map((s) => ({ value: s, label: s })), required: true, span: 1 },
-          { name: 'issueDate', label: 'Issue date', type: 'date', required: true, span: 1 },
-          { name: 'dueDate', label: 'Due date', type: 'date', required: true, span: 1 },
-        ]}
       />
 
       <ConfirmDialog

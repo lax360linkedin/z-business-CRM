@@ -8,6 +8,7 @@ import { api } from '../../api/mockServer'
 import { salesUsers } from '../../data/users'
 import { FOLLOWUP_TYPES, REMINDER_OPTIONS } from '../../data/constants'
 import { formatDate } from '../../utils/format'
+import { followUpTaskFields } from '../Tasks/followUpTask'
 import { logEnquiryActivity } from './enquiryCommunication'
 
 /** Mirrors src/pages/Leads/FollowUpModal.jsx exactly — same field set (spec §12), adapted to
@@ -37,10 +38,9 @@ export function FollowUpModal({ open, onClose, enquiry, onLogged }) {
       followUpType: type, followUpDate: date, followUpTime: time || null, reminder, assignedTo: assignee,
       by: user.id,
     })).then(() => api.post('/tasks', {
-      id: `TSK-${Date.now().toString(36).toUpperCase().slice(-6)}`,
       title: `${type} follow-up — ${enquiry.name} (${enquiry.company})`,
       relatedType: 'Enquiry', relatedId: enquiry.id, relatedName: enquiry.name,
-      assignedTo: assignee, priority: enquiry.priority || 'Medium', dueDate: date, status: 'Pending', description: notes,
+      assignedTo: assignee, priority: enquiry.priority || 'Medium', dueDate: date, description: notes, ...followUpTaskFields({ type, time, reminder }),
     })).then(() => {
       setSaving(false)
       toast('Follow-up scheduled.', { type: 'success' })

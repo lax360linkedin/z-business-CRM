@@ -15,6 +15,7 @@ const SOURCE = {
   Enquiry: { listLabel: 'Enquiries', listHref: '/enquiries', detailHref: (id) => `/enquiries/${id}`, viewLabel: 'View Enquiry' },
   Contact: { listLabel: 'Contacts', listHref: '/contacts', detailHref: (id) => `/contacts/${id}`, viewLabel: 'View Contact' },
   Deal: { listLabel: 'Deals', listHref: '/deals', detailHref: (id) => `/deals/${id}`, viewLabel: 'View Deal' },
+  Proposal: { listLabel: 'Proposals', listHref: '/proposals', detailHref: (id) => `/proposals/${id}`, viewLabel: 'View Proposal' },
 }
 
 /**

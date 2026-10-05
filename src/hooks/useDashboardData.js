@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/mockServer'
 
-const RESOURCES = ['leads', 'enquiries', 'deals', 'customers', 'projects', 'invoices', 'payments', 'tasks', 'activities']
+const RESOURCES = ['leads', 'enquiries', 'deals', 'customers', 'projects', 'salesOrders', 'invoices', 'payments', 'tasks', 'activities']
 
 export function useDashboardData() {
   const [data, setData] = useState(null)
