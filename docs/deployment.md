@@ -35,7 +35,7 @@ First-time database setup (once, against the Supabase database, from `backend/`)
 | Framework | Vite (build `npm run build`, output `dist`) |
 | `VITE_API_URL` | `https://z-business-crm.onrender.com` - the backend address only: **no** trailing slash, **no** `/api/v1` (the app adds it) |
 
-`VITE_API_URL` is read when the app is BUILT: after adding or changing it, redeploy (Deployments -> Redeploy). `frontend/vercel.json` makes every page address (`/login`, `/leads/LD-0001` ...) serve the app, but deliberately not `/api/...`.
+The repository also carries `frontend/.env.production` with `VITE_API_URL=https://z-business-crm.onrender.com` (a public address, no secret), so a production build knows its backend even if the dashboard variable is missing; a dashboard value, when set, takes priority. `VITE_API_URL` is read when the app is BUILT: after adding or changing it, redeploy (Deployments -> Redeploy). `frontend/vercel.json` makes every page address (`/login`, `/leads/LD-0001` ...) serve the app, but deliberately not `/api/...`.
 
 ## 3. Symptoms and what they mean
 

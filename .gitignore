@@ -2,6 +2,8 @@
 .env
 .env.*
 !.env.example
+# the frontend's production build reads the PUBLIC backend address from here (no secrets in it)
+!frontend/.env.production
 
 # logs
 logs

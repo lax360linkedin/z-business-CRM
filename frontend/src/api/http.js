@@ -22,7 +22,10 @@ export function isNotOurApi(err) {
   const status = err?.response?.status
   return !!status && !err.response.data?.code && [404, 405, 502, 503, 504].includes(status)
 }
-export const NOT_CONNECTED_MESSAGE = 'The sign-in server could not be reached. This site is not connected to its backend yet (the API address is missing from the deployment) - please contact your administrator.'
+/** What to tell the person when the answer did not come from our API. Which words are true depends on whether this build knows the backend's address at all. */
+export const NOT_CONNECTED_MESSAGE = SERVER
+  ? 'The server is not answering properly right now (it may still be starting up). Please wait a minute and try again.'
+  : 'The sign-in server could not be reached. This site is not connected to its backend yet (the API address is missing from the deployment) - please contact your administrator.'
 export const api = axios.create({ baseURL: API_BASE, timeout: 60000, adapter: (config) => cachingAdapter(config) })
 
 // ---- read cache -----------------------------------------------------------------------------------------------------------------------------
