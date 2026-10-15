@@ -1,0 +1,20 @@
+# Runtime dependencies (Python 3.12+)
+fastapi>=0.115,<1.0
+uvicorn[standard]>=0.30,<1.0
+pydantic>=2.8,<3.0
+pydantic[email]>=2.8,<3.0
+pydantic-settings>=2.4,<3.0
+python-dotenv>=1.0,<2.0
+
+# Database: SQLAlchemy 2.0 + psycopg 3 against Supabase PostgreSQL, Alembic for migrations
+sqlalchemy>=2.0,<2.1
+psycopg[binary]>=3.2,<4.0
+alembic>=1.13,<2.0
+
+# Supabase client - only for Supabase-specific services (Storage etc.); database access goes through SQLAlchemy
+supabase>=2.7,<3.0
+
+# Authentication and security
+PyJWT>=2.9,<3.0
+pwdlib[argon2]>=0.2,<1.0
+python-multipart>=0.0.9

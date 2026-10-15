@@ -1,4 +1,9 @@
-# Logs
+# secrets - never commit real environment files (placeholders live in .env.example)
+.env
+.env.*
+!.env.example
+
+# logs
 logs
 *.log
 npm-debug.log*
@@ -7,12 +12,26 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# frontend
 node_modules
 dist
 dist-ssr
+.vite
 *.local
 
-# Editor directories and files
+# backend (python)
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+htmlcov/
+.coverage
+
+# editor / os
 .vscode/*
 !.vscode/extensions.json
 .idea
