@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
-import { api } from '../api/http'
+import { api, isNotOurApi, NOT_CONNECTED_MESSAGE } from '../api/http'
 import { clearStore } from '../api/store'
 import { setDirectory, clearDirectory } from '../data/users'
 import { ALL_BRANCHES, setBranchNames } from '../data/branches'
@@ -20,7 +20,7 @@ const DIRECTORY_MS = 2 * 60 * 1000
 
 const sameJson = (a, b) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null)
 const fail = (err, fallback) => {
-  const e = new Error(err?.response?.data?.message || (err?.code === 'ERR_NETWORK' ? 'Cannot reach the server. Check your connection and try again.' : err?.message) || fallback)
+  const e = new Error((isNotOurApi(err) ? NOT_CONNECTED_MESSAGE : null) || err?.response?.data?.message || (err?.code === 'ERR_NETWORK' ? 'Cannot reach the server. Check your connection and try again.' : err?.message) || fallback)
   e.code = err?.response?.data?.code || err?.code
   e.fields = err?.response?.data?.fields
   e.status = err?.response?.status

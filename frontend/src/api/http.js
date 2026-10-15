@@ -9,7 +9,20 @@
 import axios from 'axios'
 import { getActiveToken, getRefreshToken, storeSession, clearSession, emitSessionExpired, readSessionBlob } from '../utils/sessionToken'
 
-export const API_BASE = `${import.meta.env.VITE_API_URL || ''}/api/v1`
+// The address the browser calls. A trailing slash typed into the environment variable is harmless.
+const SERVER = String(import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '')
+export const API_BASE = `${SERVER}/api/v1`
+if (import.meta.env.PROD && !SERVER && typeof window !== 'undefined' && !/^(localhost|127\.0\.0\.1)$/.test(window.location.hostname)) {
+  // a production build without VITE_API_URL talks to its own host, which only serves the web pages: every API call would fail (404 / 405) until the variable is set and the app rebuilt
+  console.error('VITE_API_URL is not set for this deployment: the app cannot reach its server. Set it to the backend address and redeploy.')
+}
+
+/** True when the answer did not come from our API at all (a web host answering for it: 404 / 405 / 5xx page instead of the API's JSON with a `code`). */
+export function isNotOurApi(err) {
+  const status = err?.response?.status
+  return !!status && !err.response.data?.code && [404, 405, 502, 503, 504].includes(status)
+}
+export const NOT_CONNECTED_MESSAGE = 'The sign-in server could not be reached. This site is not connected to its backend yet (the API address is missing from the deployment) - please contact your administrator.'
 export const api = axios.create({ baseURL: API_BASE, timeout: 60000, adapter: (config) => cachingAdapter(config) })
 
 // ---- read cache -----------------------------------------------------------------------------------------------------------------------------
@@ -112,6 +125,7 @@ if (typeof window !== 'undefined') {
 
 /** The most useful sentence for an error: the server's message, else a plain description of what went wrong. */
 export function errorMessage(err, fallback = 'Something went wrong. Please try again.') {
+  if (isNotOurApi(err)) return NOT_CONNECTED_MESSAGE
   if (err?.response?.data?.message) return err.response.data.message
   if (err?.code === 'ERR_NETWORK') return 'Cannot reach the server. Check your connection and try again.'
   if (err?.code === 'ECONNABORTED') return 'The server took too long to answer. Please try again.'
