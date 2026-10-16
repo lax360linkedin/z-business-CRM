@@ -3,7 +3,7 @@ import { Modal } from '../../components/common/Modal'
 import { Button } from '../../components/common/Button'
 import { FormField, Input, Select, Textarea } from '../../components/common/FormField'
 import { useToast } from '../../context/ToastContext'
-import { EMPLOYMENT_TYPES, WORK_MODES, SHIFTS, WORK_LOCATIONS, GENDERS, isWorking, wouldCreateCycle, todayKey } from '../../utils/employeeRules'
+import { EMPLOYMENT_TYPES, WORK_MODES, SHIFTS, WORK_LOCATIONS, OTHER_LOCATION, splitLocation, GENDERS, isWorking, wouldCreateCycle, todayKey } from '../../utils/employeeRules'
 import { createEmployee, updateEmployee, orgErr, orgFields } from './employeeClient'
 import { useBranch } from '../../context/BranchContext'
 
@@ -19,10 +19,12 @@ export function EmployeeFormDialog({ open, onClose, employee = null, org, onSave
   const [errors, setErrors] = useState({}); const [error, setError] = useState(''); const [busy, setBusy] = useState(false)
   const [requestId, setRequestId] = useState('')
   const [createLogin, setCreateLogin] = useState(false)
+  const [loc, setLoc] = useState({ choice: WORK_LOCATIONS[0], custom: '' }) // the Work location dropdown + the typed place when Others is chosen
   const set = (p) => setF((x) => ({ ...x, ...p }))
   useEffect(() => {
     if (!open) return
     setErrors({}); setError(''); setCreateLogin(false); setRequestId(`REQ-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`)
+    setLoc(splitLocation(employee ? employee.workLocation : blank().workLocation))
     setF(employee ? { ...blank(), ...Object.fromEntries(Object.keys(blank()).map((k) => [k, employee[k] ?? blank()[k]])), emergencyContact: employee.emergencyContact || blank().emergencyContact, id: employee.id } : blank())
   }, [open, employee?.id]) // eslint-disable-line react-hooks/exhaustive-deps
   if (!open) return null
@@ -32,8 +34,12 @@ export function EmployeeFormDialog({ open, onClose, employee = null, org, onSave
   const managers = employees.filter((e) => isWorking(e.status) && e.id !== employee?.id && !wouldCreateCycle(employees, employee?.id || '__new__', e.id))
   const save = () => {
     if (busy) return
+    const place = loc.choice === OTHER_LOCATION ? loc.custom.trim() : loc.choice
+    if (loc.choice === OTHER_LOCATION && !place) return setErrors({ workLocation: 'Enter the work location.' })
+    if (place.length > 80) return setErrors({ workLocation: 'Work location can be at most 80 characters.' })
+    if (!place && !employee) return setErrors({ workLocation: 'Choose a work location.' })
     setBusy(true); setError(''); setErrors({})
-    const payload = { ...f, requestId, teamId: f.teamId || null, subTeamId: f.subTeamId || null, reportsTo: f.reportsTo || null }
+    const payload = { ...f, workLocation: place, requestId, teamId: f.teamId || null, subTeamId: f.subTeamId || null, reportsTo: f.reportsTo || null }
     if (employee) delete payload.id
     ;(employee ? updateEmployee(employee.id, payload) : createEmployee(payload)).then((e) => { toast(employee ? 'Employee updated.' : `${e.fullName} added as ${e.id}.`, { type: 'success' }); onSaved?.(e, !employee && createLogin); onClose() }).catch((e) => { setErrors(orgFields(e)); setError(orgErr(e)) }).finally(() => setBusy(false))
   }
@@ -60,7 +66,7 @@ export function EmployeeFormDialog({ open, onClose, employee = null, org, onSave
         {sel('teamId', 'Team', deptTeams.map((t) => [t.id, t.name]), { blank: f.departmentId ? 'No team' : 'Choose a department first', reset: { subTeamId: '' } })}
         {sel('subTeamId', 'Sub-team', subTeams.map((t) => [t.id, t.name]), { blank: subTeams.length ? 'No sub-team' : 'None available' })}
         {sel('reportsTo', 'Reports to', managers.map((m) => [m.id, `${m.fullName} · ${m.designation}`]), { blank: 'No manager (top of the structure)' })}
-        {sel('workMode', 'Work mode', WORK_MODES.map((x) => [x, x]), { blank: false })}{sel('workLocation', 'Work location', [...new Set([...WORK_LOCATIONS, f.workLocation].filter(Boolean))].map((x) => [x, x]), { blank: false })}{sel('shift', 'Shift', [...new Set([...SHIFTS, f.shift].filter(Boolean))].map((x) => [x, x]), { blank: false })}
+        {sel('workMode', 'Work mode', WORK_MODES.map((x) => [x, x]), { blank: false })}<FormField label="Work location" error={errors.workLocation} required={!employee}><Select aria-label="Work location" value={loc.choice} onChange={(e) => { setLoc((l) => ({ ...l, choice: e.target.value })); setErrors((x) => ({ ...x, workLocation: '' })) }} error={!!errors.workLocation}>{!loc.choice && <option value="">{employee ? 'Not set' : 'Select'}</option>}{WORK_LOCATIONS.map((x) => <option key={x} value={x}>{x}</option>)}</Select>{loc.choice === OTHER_LOCATION && <Input aria-label="Other work location" placeholder="Enter the work location" maxLength={80} value={loc.custom} onChange={(e) => { setLoc((l) => ({ ...l, custom: e.target.value })); setErrors((x) => ({ ...x, workLocation: '' })) }} error={!!errors.workLocation} />}</FormField>{sel('shift', 'Shift', [...new Set([...SHIFTS, f.shift].filter(Boolean))].map((x) => [x, x]), { blank: false })}
         <p className="text-xs text-ink-400 sm:col-span-2">The team leader is derived from the team. Reporting lines cannot loop — people who already report (directly or indirectly) to this employee are not offered as managers.</p>
         {!employee && perms.grantAccess && (
           <label className="flex items-center gap-2 rounded-xl border border-ink-100 px-4 py-3 text-sm text-ink-700 sm:col-span-2 dark:border-ink-800 dark:text-ink-200">

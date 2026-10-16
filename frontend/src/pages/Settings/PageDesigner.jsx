@@ -3,7 +3,7 @@ import { AlignLeft, AlignCenter, AlignRight, ImagePlus, Trash2, Building2, Plus,
 import { Button } from '../../components/common/Button'
 import { FormField, Input } from '../../components/common/FormField'
 import { useToast } from '../../context/ToastContext'
-import { LOGO_SRC } from '../../components/common/Logo'
+import { logoDataUrl } from '../../utils/logoImage'
 import { QUOTATION_TEMPLATE_FIELDS } from '../../data/constants'
 import { RibbonToolbar } from './RibbonToolbar'
 import { BAND_SIDE_MARGIN, HEADER_TOP, FOOTER_BOTTOM, BAND_GAP, BAND_DEFAULT_SIZE, BAND_LEADING, WATERMARK_H, WATERMARK_V, defaultBand, defaultWatermark } from './templateBands'
@@ -28,16 +28,7 @@ function readImageFile(file) {
   })
 }
 
-async function companyLogoDataUrl() {
-  const res = await fetch(LOGO_SRC)
-  const blob = await res.blob()
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader()
-    reader.onload = () => resolve(reader.result)
-    reader.onerror = reject
-    reader.readAsDataURL(blob)
-  })
-}
+const companyLogoDataUrl = logoDataUrl
 
 /** One editable region (header, footer or document body). Populated once; afterwards the DOM is the source of truth and edits flow out through onChange. */
 function RichZone({ html, onChange, onFocusZone, className = '', style, label }) {

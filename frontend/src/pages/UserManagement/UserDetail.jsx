@@ -4,13 +4,14 @@ import { useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   ArrowLeft, Mail, Phone, Building2, UserCog, CalendarClock, Clock, KeyRound, Monitor,
   ShieldCheck, CheckCircle2, XCircle, Pencil, History, User, Lock, Unlock,
-  Copy, Eye, EyeOff, UserCircle2, MapPin,
+  Copy, Eye, EyeOff, UserCircle2, MapPin, Trash2,
 } from 'lucide-react'
 import { Breadcrumbs } from '../../components/common/Breadcrumbs'
 import { Tabs } from '../../components/common/Tabs'
 import { StatusBadge, PriorityBadge, Badge } from '../../components/common/Badge'
 import { Avatar } from '../../components/common/Avatar'
 import { Button } from '../../components/common/Button'
+import { DeletePersonDialog } from '../Employees/DeletePersonDialog'
 import { FormModal } from '../../components/common/FormModal'
 import { Modal } from '../../components/common/Modal'
 import { FormField, Input } from '../../components/common/FormField'
@@ -95,6 +96,7 @@ export default function UserDetail() {
   const [editOpen, setEditOpen] = useState(searchParams.get('edit') === '1')
   const [saving, setSaving] = useState(false)
   const [changePwOpen, setChangePwOpen] = useState(false)
+  const [deleteOpen, setDeleteOpen] = useState(false)
   const [changingPw, setChangingPw] = useState(false)
   const [loginActivity, setLoginActivity] = useState([])
   useCollections('leads', 'deals', 'projects')
@@ -222,16 +224,19 @@ export default function UserDetail() {
             </div>
           </div>
         </div>
-        {canManage && !isSuperAccount && (
+        {(canManage && !isSuperAccount) || (viewer?.accessLevel === 'Super Admin' && account.id !== viewer?.accountId) ? (
           <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" icon={Pencil} onClick={() => setEditOpen(true)}>Edit User</Button>
-            {account.status === 'Active' ? (
-              <Button variant="danger" icon={XCircle} onClick={() => updateStatus('Inactive', `${account.name} deactivated.`)}>Deactivate</Button>
-            ) : (
-              <Button icon={CheckCircle2} onClick={() => updateStatus('Active', `${account.name} activated.`)}>Activate</Button>
-            )}
+            {canManage && !isSuperAccount && <>
+              <Button variant="secondary" icon={Pencil} onClick={() => setEditOpen(true)}>Edit User</Button>
+              {account.status === 'Active' ? (
+                <Button variant="danger" icon={XCircle} onClick={() => updateStatus('Inactive', `${account.name} deactivated.`)}>Deactivate</Button>
+              ) : (
+                <Button icon={CheckCircle2} onClick={() => updateStatus('Active', `${account.name} activated.`)}>Activate</Button>
+              )}
+            </>}
+            {viewer?.accessLevel === 'Super Admin' && account.id !== viewer?.accountId && <Button variant="danger" icon={Trash2} onClick={() => setDeleteOpen(true)}>Delete User</Button>}
           </div>
-        )}
+        ) : null}
       </div>
 
       <div className="mb-5 rounded-2xl border border-ink-100 bg-white p-1.5 shadow-card dark:border-ink-800 dark:bg-ink-900">
@@ -505,6 +510,8 @@ export default function UserDetail() {
           { name: 'department', label: 'Department', type: 'select', options: departmentNames().map((d) => ({ value: d, label: d })), required: true, span: 1 },
         ]}
       />
+
+      {deleteOpen && <DeletePersonDialog employeeId={account.employeeId} accountId={account.id} name={account.name} onClose={() => setDeleteOpen(false)} onDone={() => navigate('/user-management', { replace: true })} />}
 
       {canSeeCredentials && (
         <ChangePasswordModal open={changePwOpen} onClose={() => setChangePwOpen(false)} onSubmit={submitChangePassword} loading={changingPw} />

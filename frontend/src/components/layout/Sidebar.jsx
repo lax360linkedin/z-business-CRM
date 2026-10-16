@@ -5,7 +5,7 @@ import clsx from 'clsx'
 import { NAV_SECTIONS } from '../../routes/navConfig'
 import { useSidebar } from '../../context/SidebarContext'
 import { useAuth } from '../../context/AuthContext'
-import { LOGO_SRC } from '../common/Logo'
+import { BrandImg } from '../common/Logo'
 import { preloadPath } from '../../routes/lazyPage'
 import { prefetchData } from '../../api/prefetch'
 
@@ -52,7 +52,7 @@ function SidebarContent({ collapsed, onNavigate }) {
       <div className={clsx('flex h-16 shrink-0 items-center border-b border-ink-100 px-4 dark:border-ink-800', collapsed && 'justify-center px-0')}>
         <div className="flex items-center gap-2.5">
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white shadow-md ring-1 ring-ink-100 dark:ring-0">
-            <img src={LOGO_SRC} alt="LAX360" className="h-7 w-7 object-contain" />
+            <BrandImg className="h-7 w-7 object-contain" />
           </span>
           {!collapsed && (
             <span className="leading-tight">

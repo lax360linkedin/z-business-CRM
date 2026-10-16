@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api } from '../../api/mockServer'
 import { invErr, invFields } from '../Invoices/invoiceClient'
+import { setDirectory } from '../../data/users'
 
 export { invErr as orgErr, invFields as orgFields }
 const EVT = 'crm:org-changed'
@@ -23,6 +24,13 @@ export const fetchDepartment = (id) => api.get(`/departments/${id}`).then((r) =>
 export const fetchTeam = (id) => api.get(`/teams/${id}`).then((r) => withGroupDefaults(r.data))
 export const saveDepartment = (id, payload) => after(id ? api.put(`/departments/${id}`, payload) : api.post('/departments', payload))
 export const saveTeam = (id, payload) => after(id ? api.put(`/teams/${id}`, payload) : api.post('/teams', payload))
+// from User Management the same operation goes through the account's own endpoint (`accountId`), so the audit trail says where it was started
+const deletePath = (id, accountId) => (accountId ? `/userAccounts/${accountId}` : `/employees/${id}`)
+export const fetchDeleteImpact = (id, accountId) => api.get(`${deletePath(id, accountId)}/delete-impact`, { noCache: true }).then((r) => r.data)
+export const fetchEmployeeChoices = () => api.get('/employees', { params: { all: true } }).then((r) => (Array.isArray(r.data) ? r.data : r.data.data || []))
+/** Deletes the person (login + employee record together) and refreshes everything that lists people: the org screens, the user list and the name directory used by pickers. */
+export const deletePerson = (id, reassignTo, accountId) => api.delete(deletePath(id, accountId), { params: reassignTo ? { reassignTo } : undefined, silent: true })
+  .then((r) => { api.get('/directory/people', { noCache: true }).then((d) => setDirectory(d.data)).catch(() => null); emitOrgChanged(); return r.data })
 export const removeDepartment = (id) => after(api.delete(`/departments/${id}`))
 export const removeTeam = (id) => after(api.delete(`/teams/${id}`))
 

@@ -1,6 +1,6 @@
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib'
 import { formatDate } from '../../utils/format'
-import { LOGO_SRC } from '../../components/common/Logo'
+import { logoForPdf } from '../../utils/logoImage'
 import { prepareDecorations, collectStyledRuns, wrapStyledRuns, drawStyledLine, blockAlign } from './pdfDecorations'
 
 // Standard PDF fonts (Helvetica) use WinAnsi encoding, which has no Rupee-sign glyph — drawing
@@ -56,16 +56,6 @@ function chunkRows(rows) {
   return pages
 }
 
-async function fetchLogoBytes() {
-  try {
-    const res = await fetch(LOGO_SRC)
-    if (!res.ok) return null
-    return new Uint8Array(await res.arrayBuffer())
-  } catch {
-    return null
-  }
-}
-
 function dataUrlToBytes(dataUrl) {
   const base64 = dataUrl.split(',')[1] || ''
   const binary = atob(base64)
@@ -84,10 +74,10 @@ async function buildDefaultLayout({ quotation, preparedByName }) {
   const pdfDoc = await PDFDocument.create()
   const font = await pdfDoc.embedFont(StandardFonts.Helvetica)
   const bold = await pdfDoc.embedFont(StandardFonts.HelveticaBold)
-  const logoBytes = await fetchLogoBytes()
+  const logo = await logoForPdf()
   let logoImage = null
-  if (logoBytes) {
-    try { logoImage = await pdfDoc.embedJpg(logoBytes) } catch { logoImage = null }
+  if (logo) {
+    try { logoImage = logo.kind === 'png' ? await pdfDoc.embedPng(logo.bytes) : await pdfDoc.embedJpg(logo.bytes) } catch { logoImage = null }
   }
 
   const rows = quotation.items.length ? quotation.items : [{ _empty: true, name: 'No line items added yet.' }]

@@ -65,6 +65,11 @@ def terminate_(user_id: str, p: Principal = Depends(require_super_admin), db: Se
     return accounts.terminate_sessions(db, p, user_id)
 
 
-@router.delete("/{user_id}", summary="Delete an account")
-def delete_(user_id: str, p: Principal = Depends(require_super_admin), db: Session = Depends(get_db)):
-    return accounts.delete_account(db, p, user_id)
+@router.get("/{user_id}/delete-impact", summary="What deleting this person would touch, and whether it is allowed")
+def delete_impact(user_id: str, p: Principal = Depends(require_super_admin), db: Session = Depends(get_db)):
+    return accounts.deletion_impact(db, p, accounts.get_user(db, user_id).employee_id)
+
+
+@router.delete("/{user_id}", summary="Delete a person: their login and their employee record together (reassignTo = who inherits their work)")
+def delete_(user_id: str, reassignTo: str | None = None, p: Principal = Depends(require_super_admin), db: Session = Depends(get_db)):
+    return accounts.delete_account(db, p, user_id, reassignTo)

@@ -21,6 +21,7 @@ import { TaskFormDialog } from '../Tasks/TaskFormDialog'
 import { useOrg } from './employeeClient'
 import { EmployeeFormDialog } from './EmployeeFormDialog'
 import { StatusDialog, AccessDialog, BulkDialog, ImportDialog } from './EmployeeDialogs'
+import { DeletePersonDialog } from './DeletePersonDialog'
 import { exportCsv, exportExcel, exportPdf, printRows } from './employeeExport'
 import { OrgChart } from './OrgChart'
 import { DepartmentsTab, TeamsTab } from './OrgStructure'
@@ -142,6 +143,7 @@ export default function Employees() {
       {perms.edit && <DropdownItem icon={Repeat} onClick={() => setDlg({ kind: 'edit', e })}>Change team / department</DropdownItem>}
       {perms.changeStatus && <DropdownItem icon={Repeat} onClick={() => setDlg({ kind: 'status', e })}>Change status</DropdownItem>}
       {perms.grantAccess && !e.crmAccess && isWorking(e.status) && <DropdownItem icon={KeyRound} onClick={() => setDlg({ kind: 'access', e })}>Grant CRM access</DropdownItem>}
+      {perms.delete && e.id !== user?.id && <><DropdownDivider /><DropdownItem icon={Trash2} danger onClick={() => setDlg({ kind: 'delete', e })}>Delete employee</DropdownItem></>}
     </Dropdown>
   )
   const cell = (c, e) => {
@@ -248,6 +250,7 @@ export default function Employees() {
 
       <EmployeeFormDialog open={dlg?.kind === 'create' || dlg?.kind === 'edit'} onClose={() => setDlg(null)} employee={dlg?.kind === 'edit' ? dlg.e : null} org={{ ...org, perms }} onSaved={(emp, wantsLogin) => { reload(); if (wantsLogin && emp) setDlg({ kind: 'access', e: emp }) }} />
       {dlg?.kind === 'status' && <StatusDialog employee={dlg.e} onClose={() => setDlg(null)} onDone={() => reload()} />}
+      {dlg?.kind === 'delete' && <DeletePersonDialog employeeId={dlg.e.id} name={dlg.e.fullName} onClose={() => setDlg(null)} onDone={() => { setSelected((s) => { const n = new Set(s); n.delete(dlg.e.id); return n }); reload() }} />}
       {dlg?.kind === 'access' && <AccessDialog employee={dlg.e} onClose={() => { setDlg(null); reload() }} />}
       {dlg?.kind === 'bulk' && <BulkDialog ids={[...selected]} org={org} roles={[]} perms={perms} onClose={() => { setDlg(null); setSelected(new Set()) }} onDone={() => reload()} />}
       {dlg?.kind === 'import' && <ImportDialog onClose={() => setDlg(null)} onDone={() => reload()} />}

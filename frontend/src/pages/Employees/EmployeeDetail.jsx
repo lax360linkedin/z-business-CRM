@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import clsx from 'clsx'
-import { ArrowLeft, Pencil, Phone, Mail, ClipboardList, Repeat, KeyRound, FileX2, History, Crown, ShieldCheck, ExternalLink, UploadCloud } from 'lucide-react'
+import { ArrowLeft, Trash2, Pencil, Phone, Mail, ClipboardList, Repeat, KeyRound, FileX2, History, Crown, ShieldCheck, ExternalLink, UploadCloud } from 'lucide-react'
 import { Breadcrumbs } from '../../components/common/Breadcrumbs'
 import { Button } from '../../components/common/Button'
 import { Badge, StatusBadge } from '../../components/common/Badge'
@@ -10,6 +10,7 @@ import { EmptyState } from '../../components/common/EmptyState'
 import { Tabs } from '../../components/common/Tabs'
 import { CardSkeleton } from '../../components/common/LoadingSkeleton'
 import { api } from '../../api/mockServer'
+import { useAuth } from '../../context/AuthContext'
 import { getUserById } from '../../data/users'
 import { isWorking } from '../../utils/employeeRules'
 import { formatCurrency, formatDate, formatDateTime, timeAgo } from '../../utils/format'
@@ -19,6 +20,7 @@ import { useDocuments } from '../Documents/documentClient'
 import { fetchEmployee, useOrg } from './employeeClient'
 import { EmployeeFormDialog } from './EmployeeFormDialog'
 import { StatusDialog, AccessDialog } from './EmployeeDialogs'
+import { DeletePersonDialog } from './DeletePersonDialog'
 
 const Card = ({ title, action, children, className }) => <section className={clsx('min-w-0 rounded-2xl border border-ink-100 bg-white shadow-card dark:border-ink-800 dark:bg-ink-900', className)}><header className="flex items-center justify-between gap-2 border-b border-ink-100 px-5 py-3 dark:border-ink-800"><h2 className="text-sm font-semibold text-ink-900 dark:text-ink-50">{title}</h2>{action}</header><div className="p-5">{children}</div></section>
 const KV = ({ k, children }) => <div className="flex justify-between gap-4 py-2 text-sm"><dt className="shrink-0 text-ink-400">{k}</dt><dd className="min-w-0 break-words text-right font-medium text-ink-900 dark:text-ink-50">{children || '—'}</dd></div>
@@ -29,7 +31,7 @@ const LOAD_TONE = { None: 'neutral', Light: 'success', Moderate: 'warning', Heav
 
 export default function EmployeeDetail() {
   const { id } = useParams(); const navigate = useNavigate(); const [params, setParams] = useSearchParams()
-  const org = useOrg()
+  const org = useOrg(); const { user } = useAuth()
   const [e, setE] = useState(null); const [state, setState] = useState('loading'); const [acts, setActs] = useState([]); const [dlg, setDlg] = useState(null)
   const tab = params.get('tab') || 'overview'
   const setTab = (t) => setParams((p) => { const n = new URLSearchParams(p); n.set('tab', t); return n }, { replace: true })
@@ -73,6 +75,7 @@ export default function EmployeeDetail() {
           {p.assignTask && e.crmAccess && isWorking(e.status) && <Button variant="ghost" icon={ClipboardList} onClick={() => setDlg('task')}>Assign task</Button>}
           {p.grantAccess && !e.crmAccess && isWorking(e.status) && <Button variant="ghost" icon={KeyRound} onClick={() => setDlg('access')}>Grant CRM access</Button>}
           {e.accountId && <Link to={`/user-management/${e.accountId}`}><Button variant="ghost" icon={ExternalLink}>Open in User Management</Button></Link>}
+          {p.delete && e.id !== user?.id && <Button variant="ghost" icon={Trash2} className="text-rose-600" onClick={() => setDlg('delete')}>Delete</Button>}
           {p.manageDocuments && <Button variant="ghost" icon={UploadCloud} onClick={() => setTab('documents')}>Documents</Button>}
         </div>
         {!isWorking(e.status) && <p className="rounded-xl bg-ink-50 px-4 py-3 text-sm text-ink-600 dark:bg-ink-800/50 dark:text-ink-300">{e.status}{e.exitDate ? ` since ${formatDate(e.exitDate)}` : ''}. This person stays on record — everything they owned keeps their name.</p>}
@@ -120,6 +123,7 @@ export default function EmployeeDetail() {
 
       <EmployeeFormDialog open={dlg === 'edit'} onClose={() => setDlg(null)} employee={e} org={{ ...org, perms: org.perms }} onSaved={load} />
       {dlg === 'status' && <StatusDialog employee={e} onClose={() => setDlg(null)} onDone={load} />}
+      {dlg === 'delete' && <DeletePersonDialog employeeId={e.id} name={e.fullName} onClose={() => setDlg(null)} onDone={() => navigate('/employees', { replace: true })} />}
       {dlg === 'access' && <AccessDialog employee={e} onClose={() => { setDlg(null); load() }} />}
       {dlg === 'task' && <TaskFormDialog open onClose={() => setDlg(null)} preset={{ title: `Task for ${e.fullName}`, assignees: [e.id] }} onSaved={() => { setDlg(null); load() }} />}
     </div>

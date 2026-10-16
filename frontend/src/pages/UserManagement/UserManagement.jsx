@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import { useEffect } from 'react'
 import {
   Plus, MoreVertical, Eye, Pencil, CheckCircle2, Ban, ShieldAlert, Unlock, KeyRound,
-  UserCog, Building2, History, Users, UserCheck, UserX, Clock3, Lock, LogOut,
+  UserCog, Building2, History, Users, UserCheck, UserX, Clock3, Lock, LogOut, Trash2,
 } from 'lucide-react'
 import { PageHeader } from '../../components/common/PageHeader'
 import { SearchBar } from '../../components/common/SearchBar'
@@ -16,6 +16,7 @@ import { StatCard } from '../../components/common/StatCard'
 import { Dropdown, DropdownItem, DropdownDivider, DropdownLabel } from '../../components/common/Dropdown'
 import { ConfirmDialog } from '../../components/common/ConfirmDialog'
 import { AddUserModal, CredentialsCard } from './AddUserModal'
+import { DeletePersonDialog } from '../Employees/DeletePersonDialog'
 import { BranchBadge } from '../../components/layout/BranchSelector'
 import { useBranch } from '../../context/BranchContext'
 import { accessToAccount } from './AccessSetup'
@@ -60,6 +61,7 @@ export default function UserManagement() {
   const [extraAdmin, setExtraAdmin] = useState(null) // the account waiting for the Super Admin to confirm a 4th admin
   const [saving, setSaving] = useState(false)
   const [confirmAction, setConfirmAction] = useState(null)
+  const [deleting, setDeleting] = useState(null) // the account being deleted (Super Admin only)
   const navigate = useNavigate()
   const { toast } = useToast()
   const { user, hasPermission, forceLogoutAccount, adminResetPassword } = useAuth()
@@ -211,6 +213,10 @@ export default function UserManagement() {
               <DropdownItem icon={UserCog} onClick={() => navigate(`/user-management/${row.id}?tab=permissions`)}>Role & permissions</DropdownItem>
               <DropdownItem icon={Building2} onClick={() => navigate(`/user-management/${row.id}?edit=department`)}>Change Department</DropdownItem>
             </>}
+            {user?.accessLevel === 'Super Admin' && row.id !== user?.accountId && <>
+              <DropdownDivider />
+              <DropdownItem icon={Trash2} danger onClick={() => setDeleting(row)}>Delete User</DropdownItem>
+            </>}
           </Dropdown>
         </div>
       ),
@@ -282,6 +288,8 @@ export default function UserManagement() {
       <AddUserModal open={createOpen} onClose={() => { setCreateOpen(false); setPreset(null) }} onSubmit={createUser} loading={saving} preset={preset} />
       <ConfirmDialog open={!!extraAdmin} onClose={() => setExtraAdmin(null)} onConfirm={() => createUser(extraAdmin.data, true)} title="Add another admin to this branch?" description={extraAdmin?.message} confirmLabel="Add the admin" />
       {createdAccount && <CredentialsCard account={createdAccount} onClose={() => setCreatedAccount(null)} />}
+
+      {deleting && <DeletePersonDialog employeeId={deleting.employeeId} accountId={deleting.id} name={deleting.name} onClose={() => setDeleting(null)} onDone={() => crud.refresh()} />}
 
       <ConfirmDialog
         open={!!confirmAction}

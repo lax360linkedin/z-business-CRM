@@ -55,7 +55,8 @@ def create_app() -> FastAPI:
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["X-Frame-Options"] = "DENY"
         response.headers["Referrer-Policy"] = "no-referrer"
-        response.headers["Cache-Control"] = "no-store"
+        if "cache-control" not in response.headers:  # API answers are never cached - except what a route deliberately marks (the versioned company logo)
+            response.headers["Cache-Control"] = "no-store"
         if settings.is_production:
             response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
         log.info("%s %s -> %s %.0fms rid=%s", request.method, request.url.path, response.status_code, (time.perf_counter() - started) * 1000, rid)

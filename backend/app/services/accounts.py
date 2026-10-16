@@ -4,6 +4,7 @@ Rules the server enforces here (the browser only reflects them): only Admin / Em
 permissions; a Super Admin account is protected; every non-Super-Admin account belongs to exactly one existing, active branch; a password is never stored in clear and
 is never returned - an admin reset returns a one-time temporary password.
 """
+import json
 import re
 from datetime import UTC, date, datetime
 
@@ -326,14 +327,119 @@ def terminate_sessions(db: Session, p: Principal, user_id: str) -> dict:
     return {"terminated": count}
 
 
-def delete_account(db: Session, p: Principal, user_id: str) -> dict:
-    user = get_user(db, user_id)
-    if user.access_level == "Super Admin" or user.id == p.user.id:
-        raise forbidden("Super Admin accounts and your own account cannot be deleted.")
-    db.delete(user)
-    audit.record(db, user=p.user, action="Delete account", module="User Management", record_id=user_id, details=user.name, info=p.info)
+# ---- deleting a person ---------------------------------------------------------------------------------------------------------------------
+# Columns that point at an employee as the OWNER of a record (the foreign keys are ON DELETE SET NULL: the record stays, its owner field is cleared). Organisation structure is handled
+# on its own below, and provenance columns (who uploaded / shared a document) simply lose the link - the audit entry written here keeps who they were.
+STRUCTURE = {("employees", "reports_to"), ("departments", "head_id"), ("teams", "leader_id"), ("teams", "deputy_id")}
+PROVENANCE = {("documents", "uploaded_by"), ("document_versions", "uploaded_by"), ("document_shares", "shared_by")}
+
+
+def _ownership_columns():
+    from app.db.base import Base
+
+    out = []
+    for table in Base.metadata.sorted_tables:
+        for fk in table.foreign_keys:
+            if fk.column.table.name == "employees" and fk.ondelete == "SET NULL" and (table.name, fk.parent.name) not in STRUCTURE | PROVENANCE:
+                out.append((table, fk.parent.name))
+    return out
+
+
+def _owned_counts(db: Session, employee_id: str) -> dict[str, int]:
+    from app.models.work import TaskPerson
+
+    tp = TaskPerson.__table__
+    counts = {t.name: n for t, c in _ownership_columns() if (n := db.execute(select(func.count()).select_from(t).where(t.c[c] == employee_id)).scalar_one())}
+    if n := db.execute(select(func.count()).select_from(tp).where(tp.c.employee_id == employee_id)).scalar_one():
+        counts["tasks (assigned / watching)"] = n
+    return counts
+
+
+def deletion_impact(db: Session, p: Principal, employee_id: str) -> dict:
+    """What deleting this person would touch - shown in the confirmation so nobody is surprised - and whether it is allowed at all."""
+    emp = db.get(Employee, employee_id)
+    if emp is None:
+        raise not_found("Employee not found.")
+    user = db.execute(select(User).where(User.employee_id == emp.id)).scalar_one_or_none()
+    reason = None
+    if emp.id == p.actor_id or (user is not None and user.id == p.user.id):
+        reason = "You cannot delete your own account."
+    elif user is not None and user.access_level == "Super Admin" and not db.execute(select(func.count()).select_from(User).where(User.access_level == "Super Admin", User.status == "Active", User.id != user.id)).scalar_one():
+        reason = "This is the last active Super Admin. There must always be one, so it cannot be deleted."
+    return {"id": emp.id, "name": emp.full_name, "branch": emp.branch, "status": emp.status, "hasLogin": user is not None, "accessLevel": user.access_level if user else None,
+            "allowed": reason is None, "reason": reason, "owned": _owned_counts(db, emp.id),
+            "directReports": db.execute(select(func.count()).select_from(Employee).where(Employee.reports_to == emp.id)).scalar_one()}
+
+
+def delete_person(db: Session, p: Principal, employee_id: str, reassign_to: str | None = None, module: str = "Employees") -> dict:
+    """Removes a person for good: the login (so they can never sign in again, every session ends with it) AND the employee record, in one step, so the two can never disagree.
+
+    Business records are never deleted: what the person owned (leads, enquiries, deals, tasks, quotations ...) is handed to `reassign_to` (same branch only) or left unassigned for a manager
+    to pick up; their reporting line moves up to their own manager; teams / departments they led lose that role. An audit entry keeps who they were and what happened to their work."""
+    from sqlalchemy import func, update
+
+    from app.models.identity import Department, Team
+
+    emp = db.get(Employee, employee_id)
+    if emp is None:
+        raise not_found("Employee not found.")
+    user = db.execute(select(User).where(User.employee_id == emp.id)).scalar_one_or_none()
+    if emp.id == p.actor_id or (user is not None and user.id == p.user.id):
+        raise forbidden("You cannot delete your own account.")
+    if user is not None and user.access_level == "Super Admin":
+        others = db.execute(select(func.count()).select_from(User).where(User.access_level == "Super Admin", User.status == "Active", User.id != user.id)).scalar_one()
+        if not others:
+            raise conflict("This is the last active Super Admin. There must always be one, so it cannot be deleted.", code="LAST_SUPER_ADMIN")
+    target = None
+    if reassign_to:
+        target = db.get(Employee, reassign_to)
+        if target is None or target.id == emp.id:
+            raise invalid("Choose another employee to hand the work to.", {"reassignTo": "Choose another employee."})
+        if target.status not in ("Active", "Probation", "On Leave", "Remote"):
+            raise invalid("The employee you chose is no longer working here.", {"reassignTo": "Choose someone who is working."})
+
+    from app.models.work import TaskPerson
+
+    tp = TaskPerson.__table__
+    columns = _ownership_columns()
+    counts = _owned_counts(db, emp.id)
+    moved: dict[str, int] = {}
+    if target is not None:
+        for t, c in columns:
+            cond = t.c[c] == emp.id
+            if "branch" in t.c and target.branch:  # a record stays inside its branch: it is only handed to someone of that same branch
+                cond = cond & ((t.c.branch == target.branch) | t.c.branch.is_(None))
+            n = db.execute(update(t).where(cond).values({c: target.id})).rowcount or 0
+            if n:
+                moved[t.name] = moved.get(t.name, 0) + n
+        have = {(t, k) for t, k in db.execute(select(tp.c.task_id, tp.c.kind).where(tp.c.employee_id == target.id)).all()}
+        for task_id, kind in db.execute(select(tp.c.task_id, tp.c.kind).where(tp.c.employee_id == emp.id)).all():  # task assignees / watchers pass on too
+            if (task_id, kind) not in have:  # (where the new person is already on the task, the leaver's entry simply goes away)
+                db.execute(update(tp).where(tp.c.task_id == task_id, tp.c.kind == kind, tp.c.employee_id == emp.id).values(employee_id=target.id))
+                moved["tasks (assigned / watching)"] = moved.get("tasks (assigned / watching)", 0) + 1
+
+    reports = db.execute(select(Employee).where(Employee.reports_to == emp.id)).scalars().all()
+    for person in reports:  # the reporting line closes up: they now report to the leaver's own manager
+        person.reports_to = emp.reports_to if emp.reports_to != person.id else None
+    led = [t.name for t in db.execute(select(Team).where((Team.leader_id == emp.id) | (Team.deputy_id == emp.id))).scalars()] + \
+          [d.name for d in db.execute(select(Department).where(Department.head_id == emp.id)).scalars()]
+
+    snapshot = {"id": emp.id, "name": emp.full_name, "email": emp.official_email, "branch": emp.branch, "status": emp.status, "designation": emp.designation,
+                "role": user.job_role if user else None, "accessLevel": user.access_level if user else None, "hadLogin": user is not None,
+                "ownedRecords": counts, "handedTo": target.full_name if target else None, "handedOver": moved, "directReportsMoved": len(reports), "ledTeamsOrDepartments": led}
+    if user is not None:
+        db.delete(user)  # sessions and password-reset tokens go with it (ON DELETE CASCADE)
+        db.flush()
+    db.delete(emp)  # records pointing at the person are cleared by the database (ON DELETE SET NULL); notifications / saved filters go with them (CASCADE)
+    audit.record(db, user=p.user, action="Delete employee", module=module, record_id=emp.id, details=json.dumps(snapshot, default=str)[:1900], info=p.info)
     db.commit()
-    return {"success": True}
+    return {"success": True, "id": emp.id, "name": emp.full_name, "loginRemoved": user is not None, "handedTo": target.full_name if target else None, "handedOver": moved,
+            "unassigned": {k: v - moved.get(k, 0) for k, v in counts.items() if v - moved.get(k, 0) > 0}}
+
+
+def delete_account(db: Session, p: Principal, user_id: str, reassign_to: str | None = None) -> dict:
+    """User Management's delete: the same operation, started from the login (it removes the person's employee record too, so the two sections always agree)."""
+    return delete_person(db, p, get_user(db, user_id).employee_id, reassign_to, module="User Management")
 
 
 def sessions_of(db: Session, user_id: str) -> list[dict]:

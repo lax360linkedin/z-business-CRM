@@ -18,7 +18,9 @@ EMAIL = re.compile(r"^[^\s@]+@[^\s@]+\.[^\s@]+$")
 EMPLOYMENT_TYPES = ["Full-time", "Part-time", "Contract", "Intern", "Consultant"]
 WORK_MODES = ["On-site", "Hybrid", "Remote"]
 SHIFTS = ["General (9:00–18:00)", "Morning (6:00–15:00)", "Evening (14:00–23:00)", "Night (22:00–07:00)", "Flexible"]
-WORK_LOCATIONS = ["Chennai HQ", "Bengaluru", "Mumbai", "Hyderabad", "Remote"]
+# Work location is Office / Remote / Hybrid, or "Others" with the place typed in: what is stored is the one text (the option, or what was typed - up to 80 characters)
+WORK_LOCATIONS = ["Office", "Remote", "Hybrid", "Others"]
+MAX_LOCATION = 80
 GENDERS = ["Female", "Male", "Other", "Prefer not to say"]
 EMPLOYEE_PERMISSIONS = [["view", "View the employee directory"], ["viewSensitive", "View personal & HR details"], ["create", "Add employees"], ["edit", "Edit employees"],
                         ["changeStatus", "Change employee status"], ["manageOrg", "Manage departments & teams"], ["bulk", "Bulk operations"], ["import", "Import employees"],
@@ -42,7 +44,7 @@ def perms_of(p: Principal) -> dict:
     return {"view": view, "viewSensitive": view and "viewSensitive" in caps, "create": "create" in caps and p.can("Employees", "create"), "edit": "edit" in caps and edit,
             "changeStatus": "changeStatus" in caps and edit, "manageOrg": "manageOrg" in caps and edit, "bulk": "bulk" in caps and edit, "import": "import" in caps and p.can("Employees", "create"),
             "export": "export" in caps and p.can("Employees", "export"), "assignRole": "assignRole" in caps and edit, "manageDocuments": "manageDocuments" in caps and edit,
-            "privileged": role_of(p) in PRIVILEGED_ROLES}
+            "delete": p.is_super_admin, "privileged": role_of(p) in PRIVILEGED_ROLES}
 
 
 def denied(db: Session, p: Principal, what: str, why: str):
@@ -108,6 +110,11 @@ def check_employee(db: Session, e: Employee, changed: set[str]) -> None:
         errors["employmentType"] = "Choose an employment type."
     if e.work_mode and e.work_mode not in WORK_MODES:
         errors["workMode"] = "Choose a work mode."
+    e.work_location = re.sub(r"\s+", " ", (e.work_location or "").strip())
+    if len(e.work_location) > MAX_LOCATION:
+        errors["workLocation"] = f"Work location can be at most {MAX_LOCATION} characters."
+    elif e.work_location.lower() == "others":
+        errors["workLocation"] = "Enter the actual work location instead of “Others”."
     if e.gender and e.gender not in GENDERS:
         errors["gender"] = "Choose from the list."
     if e.reports_to:
@@ -329,7 +336,7 @@ def import_employees(db: Session, p: Principal, req: dict) -> tuple[int, dict]:
         new_id = d["id"] or _next_employee_id(db)
         e = Employee(id=new_id, full_name=probe.full_name, official_email=probe.official_email, mobile=probe.mobile, alt_phone=str(d["raw"].get("altPhone") or ""), designation=probe.designation,
                      job_title=str(d["raw"].get("jobTitle") or probe.designation), gender=probe.gender, dob=probe.dob, personal_email=probe.personal_email, address=str(d["raw"].get("address") or "")[:400],
-                     join_date=probe.join_date, employment_type=probe.employment_type, status=d["status"], work_location=str(d["raw"].get("workLocation") or "Chennai HQ"),
+                     join_date=probe.join_date, employment_type=probe.employment_type, status=d["status"], work_location=str(d["raw"].get("workLocation") or "Office"),
                      shift=str(d["raw"].get("shift") or SHIFTS[0]), work_mode=probe.work_mode, department_id=probe.department_id, team_id=probe.team_id, sub_team_id=probe.sub_team_id,
                      reports_to=probe.reports_to, branch=d.get("branch") or None, created_by=p.actor_id,
                      attributes={"timeline": [{"at": audit_now(), "type": "Created", "text": "Employee imported", "by": p.actor_id}]})

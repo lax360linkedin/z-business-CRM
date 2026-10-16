@@ -3,7 +3,7 @@ import { Outlet, Link } from 'react-router-dom'
 import { motion, useReducedMotion } from 'framer-motion'
 import { Sun, Moon, Users, TrendingUp, FolderKanban, BarChart3 } from 'lucide-react'
 import { useTheme } from '../../context/ThemeContext'
-import { LOGO_SRC } from '../common/Logo'
+import { BrandImg } from '../common/Logo'
 
 const FEATURES = [
   { icon: Users, label: 'Leads' },
@@ -115,7 +115,7 @@ export function AuthLayout() {
 
             <Link to="/login" className="relative z-10 flex items-center gap-3">
               <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-white p-1.5 shadow-lg">
-                <img src={LOGO_SRC} alt="LAX360" className="h-full w-full object-contain" />
+                <BrandImg className="h-full w-full object-contain" />
               </span>
               <span className="leading-tight">
                 <span className="block text-lg font-bold tracking-tight">LAX360</span>
@@ -156,7 +156,7 @@ export function AuthLayout() {
             <div className="mx-auto w-full max-w-sm">
               <div className="mb-7 lg:hidden">
                 <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-white p-1.5 shadow-lg">
-                  <img src={LOGO_SRC} alt="LAX360" className="h-full w-full object-contain" />
+                  <BrandImg className="h-full w-full object-contain" />
                 </span>
               </div>
               <Outlet />

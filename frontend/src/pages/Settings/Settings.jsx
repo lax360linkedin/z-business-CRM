@@ -9,7 +9,7 @@ import { Button } from '../../components/common/Button'
 import { Avatar } from '../../components/common/Avatar'
 import { Badge, StatusBadge } from '../../components/common/Badge'
 import { DataTable } from '../../components/common/DataTable'
-import { Logo } from '../../components/common/Logo'
+import { LogoSettings } from './LogoSettings'
 import { useToast } from '../../context/ToastContext'
 import { NOTIFICATION_TYPES } from '../../data/constants'
 import { api, errorMessage } from '../../api/http'
@@ -116,15 +116,7 @@ function CompanyProfilePanel() {
   return (
     <Panel title="Company Profile" description="Basic information about your organization, shown on quotations and invoices.">
       {!admin && <ReadOnlyNote />}
-      <div className="mb-6 flex items-center gap-4 rounded-xl border border-ink-100 px-4 py-3.5 dark:border-ink-800">
-        <span className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl bg-white shadow-sm dark:bg-ink-800">
-          <Logo imgClassName="h-11" />
-        </span>
-        <div>
-          <p className="text-sm font-semibold text-ink-800 dark:text-ink-100">Company Logo</p>
-          <p className="text-xs text-ink-400">Used across the sidebar, login screen, and document previews.</p>
-        </div>
-      </div>
+      <LogoSettings />
       <fieldset disabled={!admin} className="grid gap-4 sm:grid-cols-2">
         <FormField label="Company Name"><Input value={form.name} onChange={update('name')} /></FormField>
         <FormField label="Industry"><Input value={form.industry} onChange={update('industry')} /></FormField>

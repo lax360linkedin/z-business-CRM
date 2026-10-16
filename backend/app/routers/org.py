@@ -87,6 +87,16 @@ def employees_import(payload: dict[str, Any] = Body(...), p: Principal = Depends
 
 
 # ---- detail pages: the record plus its live workload, related work, structure and the caller's capabilities --------------------------
+@router.get("/employees/{employee_id}/delete-impact", summary="What deleting this employee would touch, and whether it is allowed (Super Admin)")
+def employee_delete_impact(employee_id: str, p: Principal = Depends(require_super_admin), db: Session = Depends(get_db)):
+    return accounts.deletion_impact(db, p, employee_id)
+
+
+@router.delete("/employees/{employee_id}", summary="Delete an employee and their login together (Super Admin; reassignTo = who inherits their work)")
+def delete_employee(employee_id: str, reassignTo: str | None = None, p: Principal = Depends(require_super_admin), db: Session = Depends(get_db)):
+    return accounts.delete_person(db, p, employee_id, reassignTo)
+
+
 @router.get("/employees/{employee_id}", summary="One employee with workload, related work, reporting line and what you may do")
 def employee_detail(employee_id: str, p: Principal = Depends(require("Employees", "view")), db: Session = Depends(get_db)):
     return org_detail.employee_detail(db, p, employee_id)

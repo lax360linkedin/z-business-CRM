@@ -12,7 +12,16 @@ export const isWorking = (s) => !LEFT_STATUSES.includes(s)
 export const EMPLOYMENT_TYPES = ['Full-time', 'Part-time', 'Contract', 'Intern', 'Consultant']
 export const WORK_MODES = ['On-site', 'Hybrid', 'Remote']
 export const SHIFTS = ['General (9:00–18:00)', 'Morning (6:00–15:00)', 'Evening (14:00–23:00)', 'Night (22:00–07:00)', 'Flexible']
-export const WORK_LOCATIONS = ['Chennai HQ', 'Bengaluru', 'Mumbai', 'Hyderabad', 'Remote']
+// Work location: pick Office / Remote / Hybrid, or choose Others and type the place. What is stored is the single text (the chosen option, or what was typed).
+export const WORK_LOCATIONS = ['Office', 'Remote', 'Hybrid', 'Others']
+export const OTHER_LOCATION = 'Others'
+/** Splits a saved work location into what the dropdown shows and the custom text: a saved value that is not one of the options (older records, e.g. "Chennai HQ") shows as Others with that text. */
+export function splitLocation(value) {
+  const v = String(value || '').trim()
+  if (!v) return { choice: '', custom: '' }
+  const hit = WORK_LOCATIONS.find((o) => o !== OTHER_LOCATION && o.toLowerCase() === v.toLowerCase())
+  return hit ? { choice: hit, custom: '' } : { choice: OTHER_LOCATION, custom: v }
+}
 export const GENDERS = ['Female', 'Male', 'Other', 'Prefer not to say']
 export const DEPT_COLORS = ['#6366f1', '#0ea5e9', '#10b981', '#f59e0b', '#ec4899', '#8b5cf6', '#14b8a6', '#f43f5e', '#64748b', '#84cc16']
 
