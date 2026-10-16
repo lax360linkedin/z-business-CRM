@@ -70,3 +70,32 @@ def test_a_server_error_is_readable_by_the_browser_not_a_network_failure(product
 def test_a_request_from_a_refused_origin_gets_no_cors_header(production_app):
     r = production_app.get("/health", headers={"Origin": "https://evil.example"})
     assert r.status_code == 200 and "access-control-allow-origin" not in r.headers
+
+
+@pytest.mark.parametrize("configured", [
+    "https://z-business-crm.vercel.app",
+    "z-business-crm.vercel.app",  # pasted without its scheme (what the Render dashboard held): would never match the browser's Origin, so the scheme is added
+    "https://z-business-crm.vercel.app/",  # trailing slash
+    ' "https://z-business-crm.vercel.app" ',  # quotes and spaces
+    '["https://z-business-crm.vercel.app"]',  # JSON array form
+    "http://localhost:5173, https://z-business-crm.vercel.app",  # several, comma separated
+])
+def test_every_reasonable_way_of_writing_the_origin_gives_a_working_preflight(monkeypatch, configured):
+    monkeypatch.setenv("CORS_ORIGINS", configured)
+    get_settings.cache_clear()
+    try:
+        r = preflight(TestClient(create_app()))
+    finally:
+        get_settings.cache_clear()
+    assert r.status_code == 200 and r.headers["access-control-allow-origin"] == PROD
+
+
+def test_the_400_is_the_cors_layers_own_answer_for_an_origin_that_is_not_listed(monkeypatch):
+    """Not a TrustedHost / custom middleware: Starlette's CORSMiddleware answers a preflight from an unlisted origin with 400 and this exact text."""
+    monkeypatch.setenv("CORS_ORIGINS", "https://some-other-site.example")
+    get_settings.cache_clear()
+    try:
+        r = preflight(TestClient(create_app()))
+    finally:
+        get_settings.cache_clear()
+    assert r.status_code == 400 and r.text == "Disallowed CORS origin"

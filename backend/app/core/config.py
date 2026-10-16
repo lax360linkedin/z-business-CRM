@@ -1,4 +1,5 @@
 """Application settings, loaded from environment variables / the local `.env` file (never from source code)."""
+import json
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Literal
@@ -84,12 +85,35 @@ class Settings(BaseSettings):
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _split_origins(cls, value):
+        """CORS_ORIGINS is read as plain text: comma-separated origins (`https://a.app,https://b.app`) or a JSON array (`["https://a.app"]`). Each origin is cleaned up, because the
+        browser's Origin header is compared as an exact string (`https://z-business-crm.vercel.app` - scheme included, no trailing slash, no path): a value pasted without its scheme
+        would otherwise be accepted silently and then refuse every request. A bare host gets `https://` (`http://` for localhost / a bare IP address)."""
         if isinstance(value, str):
-            value = value.split(",")
-        if isinstance(value, (list, tuple)):
-            # an origin is scheme + host (+ port) only: a pasted trailing slash or quotes would never match the browser's Origin header and every request would be refused
-            return [str(item).strip().strip("\"'").strip().rstrip("/") for item in value if str(item).strip().strip("\"'").strip()]
-        return value
+            text = value.strip()
+            if text.startswith("["):
+                try:
+                    value = json.loads(text)
+                except ValueError:
+                    value = text.strip("[]").split(",")
+            else:
+                value = text.split(",")
+        if not isinstance(value, (list, tuple)):
+            return value
+        out: list[str] = []
+        for item in value:
+            origin = str(item).strip().strip("\"'").strip().rstrip("/")
+            if not origin or origin == "*":
+                if origin == "*":
+                    out.append(origin)
+                continue
+            if "://" not in origin:
+                host = origin.split(":")[0].split("/")[0]
+                local = host in ("localhost", "127.0.0.1") or host.replace(".", "").isdigit()
+                origin = f"{'http' if local else 'https'}://{origin}"
+            origin = origin.split("/", 3)[0] + "//" + origin.split("/", 3)[2] if origin.count("/") >= 3 else origin  # drop any path: an origin is scheme + host + port
+            if origin not in out:
+                out.append(origin)
+        return out
 
     @property
     def sqlalchemy_url(self) -> str:

@@ -21,3 +21,15 @@ def test_health_reports_configuration_state_publicly(client):
     body = client.get("/health").json()
     assert body["status"] == "ok" and "problems" in body and isinstance(body["cors_origins"], list)
     assert all(isinstance(reason, str) for reason in body["problems"].values())
+
+
+def test_the_environment_variables_that_decide_production_are_these_exact_names(monkeypatch):
+    """What the hosting dashboard must contain: JWT_SECRET_KEY (>= 32 characters), APP_ENV (one of development / staging / production / test), CORS_ORIGINS."""
+    monkeypatch.setenv("JWT_SECRET_KEY", "k" * 40)
+    monkeypatch.setenv("APP_ENV", "production")
+    s = Settings(_env_file=None)
+    assert s.jwt_configured and s.is_production and "JWT_SECRET_KEY" not in s.configuration_problems()
+    monkeypatch.delenv("APP_ENV")
+    monkeypatch.delenv("JWT_SECRET_KEY")
+    s = Settings(_env_file=None)
+    assert not s.is_production and s.configuration_problems()["JWT_SECRET_KEY"] == "not set"  # exactly what the Render log printed
