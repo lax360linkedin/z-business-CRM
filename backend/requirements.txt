@@ -14,6 +14,10 @@ alembic>=1.13,<2.0
 # Supabase client - only for Supabase-specific services (Storage etc.); database access goes through SQLAlchemy
 supabase>=2.7,<3.0
 
+# n8n workflow integration: outgoing webhooks (httpx) and the encrypted shared secret (cryptography)
+httpx>=0.27,<1.0
+cryptography>=42
+
 # Authentication and security
 PyJWT>=2.9,<3.0
 pwdlib[argon2]>=0.2,<1.0

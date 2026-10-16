@@ -19,6 +19,7 @@ import { useRoleTemplates } from '../../hooks/useRoleTemplates'
 import { formatDateTime, timeAgo } from '../../utils/format'
 import { AppearancePanel } from './AppearancePanel'
 import ModuleSettings, { MODULES } from './ModuleSettings'
+import { AutomationPanel } from './AutomationSettings'
 
 // `to` here is the bare route segment (also used as the matching nested <Route path="…">
 // below). It is rendered as an ABSOLUTE NavLink target (`/settings/${item.to}`, see the nav
@@ -202,21 +203,6 @@ function ConnectionPanel({ title, description, field }) {
         <p className="text-sm text-ink-600 dark:text-ink-300">{status === false ? 'Only an administrator can see the connection status.' : info?.note || ' '}</p>
       </div>
       <p className="mt-4 text-xs text-ink-400">Nothing is sent from this workspace through this channel until it is connected by your administrator on the server.</p>
-    </Panel>
-  )
-}
-
-function AutomationPanel() {
-  return (
-    <Panel title="Automation" description="Rules that run automatically in the background to save your team time.">
-      <p className="mb-3 text-sm text-ink-600 dark:text-ink-300">The server runs these on a timer, whether or not anyone has the CRM open:</p>
-      <ul className="mb-4 list-disc space-y-1.5 pl-5 text-sm text-ink-600 dark:text-ink-300">
-        <li>Task reminders, overdue alerts and automatic follow-up tasks (configured in Tasks → Settings).</li>
-        <li>Invoices past their due date become Overdue; contracts move to Expiring Soon / Expired by their end date.</li>
-        <li>Contract expiry reminders and the renewal follow-up task; project deadline and milestone reminders; due follow-ups on leads and enquiries.</li>
-        <li>Proposals past their validity expire; documents in the bin are removed after the retention period.</li>
-      </ul>
-      <Link to="/tasks/settings" className="inline-flex h-9 items-center rounded-lg bg-brand-600 px-3.5 text-sm font-medium text-white hover:bg-brand-700">Open task automation settings</Link>
     </Panel>
   )
 }

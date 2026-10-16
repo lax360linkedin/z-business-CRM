@@ -23,7 +23,7 @@ def test_the_timer_runs_every_engine_and_isolates_failures(client, sa, monkeypat
         db.get(Document, d["id"]).purge_after = datetime.now(UTC) - timedelta(days=1)
         db.commit()
     out = scheduler.run_once()
-    assert set(out) == {"tasks", "invoices", "contracts", "proposals", "documents", "reminders"} and out["documents"] == {"purged": 1}
+    assert set(out) == {"tasks", "invoices", "contracts", "proposals", "documents", "reminders", "automation"} and out["documents"] == {"purged": 1}
     with get_session_factory()() as db:
         assert db.execute(select(Document)).first() is None
     monkeypatch.setitem(scheduler.JOBS, "invoices", lambda db: 1 / 0)

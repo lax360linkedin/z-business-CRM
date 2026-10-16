@@ -2,7 +2,7 @@
 paths such as /invoices/engine/run are not swallowed by /invoices/{record_id}."""
 from fastapi import APIRouter
 
-from app.routers import accounts, activities, auth, billing, branding, catalogue, crm, documents, expenses, finance_extras, helpdesk, marketing, misc, operations, options, org, roles, sales, tasks
+from app.routers import accounts, activities, auth, automation, billing, branding, catalogue, crm, documents, expenses, finance_extras, helpdesk, marketing, misc, operations, options, org, roles, sales, tasks
 from app.routers.records import make_router
 from app.services import modules
 from app.services.org import DEPARTMENT_SPEC, EMPLOYEE_SPEC, TEAM_SPEC
@@ -14,7 +14,7 @@ api_router.include_router(org.router)
 api_router.include_router(roles.router)
 
 # module-specific routers (workflows, actions) are added here, ahead of the generic CRUD routers
-EXTRA_ROUTERS: list[APIRouter] = [branding.router, options.router, catalogue.router, finance_extras.router, crm.router, tasks.router, activities.router, billing.router, sales.router, operations.router, expenses.router, documents.router, marketing.router, helpdesk.router, misc.router]
+EXTRA_ROUTERS: list[APIRouter] = [automation.router, branding.router, options.router, catalogue.router, finance_extras.router, crm.router, tasks.router, activities.router, billing.router, sales.router, operations.router, expenses.router, documents.router, marketing.router, helpdesk.router, misc.router]
 for extra in EXTRA_ROUTERS:
     api_router.include_router(extra)
 

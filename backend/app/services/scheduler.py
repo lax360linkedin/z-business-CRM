@@ -10,7 +10,7 @@ from app.core.config import get_settings
 from app.db.session import get_session_factory
 
 log = logging.getLogger("app.scheduler")
-LOCK_KEYS = {"tasks": 71001, "invoices": 71002, "contracts": 71003, "proposals": 71004, "documents": 71005, "reminders": 71006}
+LOCK_KEYS = {"tasks": 71001, "invoices": 71002, "contracts": 71003, "proposals": 71004, "documents": 71005, "reminders": 71006, "automation": 71007}
 
 
 def _tasks(db):
@@ -49,7 +49,13 @@ def _reminders(db):
     return reminders.run(db)
 
 
-JOBS = {"tasks": _tasks, "invoices": _invoices, "contracts": _contracts, "proposals": _proposals, "documents": _documents, "reminders": _reminders}
+def _automation(db):
+    from app.services import automation
+
+    return automation.sweep(db)
+
+
+JOBS = {"tasks": _tasks, "invoices": _invoices, "contracts": _contracts, "proposals": _proposals, "documents": _documents, "reminders": _reminders, "automation": _automation}
 
 
 def run_once() -> dict:

@@ -17,7 +17,7 @@ from app.api.deps import Principal
 from app.core.errors import ApiError, conflict, forbidden, invalid, not_found
 from app.db import ids
 from app.db.base import Base
-from app.services import audit
+from app.services import audit, automation
 from app.services.codec import check_attributes_size, columns_of, coerce, model_for_table, split_payload, to_json
 
 ID_PATTERN = re.compile(r"^[A-Za-z]{2,6}-[A-Za-z0-9-]{1,40}$")
@@ -257,7 +257,9 @@ def create_record(db: Session, spec: ModuleSpec, p: Principal, payload: dict) ->
     db.flush()  # branch stamping and every constraint run here
     spec.hooks.after_create(ctx, obj, payload)
     _log(db, p, spec, "Created", obj.id)
+    runs = automation.capture(db, p, spec.key, "created", obj)  # n8n workflows listening to this event (queued in this same transaction)
     db.commit()
+    automation.fire(runs)
     return spec.hooks.present(ctx, obj, to_json(obj))
 
 
@@ -310,7 +312,9 @@ def update_record(db: Session, spec: ModuleSpec, p: Principal, record_id: str, p
     spec.hooks.after_update(ctx, obj, changes, payload)
     if changes:
         _log(db, p, spec, "Updated", obj.id, "Changed: " + ", ".join(sorted(changes)))
+    runs = automation.capture(db, p, spec.key, "updated", obj, changes) if changes else []
     db.commit()
+    automation.fire(runs)
     return spec.hooks.present(ctx, obj, to_json(obj))
 
 
