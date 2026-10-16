@@ -42,7 +42,8 @@ class Settings(BaseSettings):
     debug: bool = False
     api_v1_prefix: str = "/api/v1"
     # comma-separated in the environment; NoDecode stops pydantic-settings from expecting JSON
-    cors_origins: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["http://localhost:5173"])
+    # the browser origins allowed to call the API (scheme + host + port, no path). Default: local development plus the production frontend; CORS_ORIGINS replaces the whole list.
+    cors_origins: Annotated[list[str], NoDecode] = Field(default_factory=lambda: ["http://localhost:5173", "http://localhost:5178", "https://z-business-crm.vercel.app"])
 
     # database (Supabase PostgreSQL through SQLAlchemy + psycopg 3)
     database_url: str = ""
@@ -84,7 +85,10 @@ class Settings(BaseSettings):
     @classmethod
     def _split_origins(cls, value):
         if isinstance(value, str):
-            return [item.strip() for item in value.split(",") if item.strip()]
+            value = value.split(",")
+        if isinstance(value, (list, tuple)):
+            # an origin is scheme + host (+ port) only: a pasted trailing slash or quotes would never match the browser's Origin header and every request would be refused
+            return [str(item).strip().strip("\"'").strip().rstrip("/") for item in value if str(item).strip().strip("\"'").strip()]
         return value
 
     @property
@@ -111,6 +115,22 @@ class Settings(BaseSettings):
     @property
     def jwt_configured(self) -> bool:
         return not looks_like_placeholder(self.jwt_secret_key) and len(self.jwt_secret_key) >= 32
+
+    def configuration_problems(self) -> dict[str, str]:
+        """Why each unusable setting is unusable (never the value itself): the difference between 'not set' and 'set but rejected' is what an operator needs to see."""
+        problems: dict[str, str] = {}
+
+        def why(value: str | None) -> str:
+            return "not set" if not value else "still a placeholder"
+
+        if not self.database_configured:
+            problems["DATABASE_URL"] = why(self.database_url)
+        if not self.jwt_configured:
+            problems["JWT_SECRET_KEY"] = "too short (needs at least 32 characters)" if self.jwt_secret_key and not looks_like_placeholder(self.jwt_secret_key) else why(self.jwt_secret_key)
+        for name, value in (("SUPABASE_URL", self.supabase_url), ("SUPABASE_ANON_KEY", self.supabase_anon_key), ("SUPABASE_SERVICE_ROLE_KEY", self.supabase_service_role_key)):
+            if looks_like_placeholder(value):
+                problems[name] = why(value)
+        return problems
 
     def missing_configuration(self) -> list[str]:
         """Names of the settings that still hold placeholders (reported by /health - never their values)."""

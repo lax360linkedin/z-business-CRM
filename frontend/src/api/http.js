@@ -9,8 +9,9 @@
 import axios from 'axios'
 import { getActiveToken, getRefreshToken, storeSession, clearSession, emitSessionExpired, readSessionBlob } from '../utils/sessionToken'
 
-// The address the browser calls. A trailing slash typed into the environment variable is harmless.
-const SERVER = String(import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '')
+// The address the browser calls. The variable is VITE_API_URL; VITE_API_BASE_URL is accepted as an alias (and wins, so a value typed in the hosting dashboard overrides the committed
+// default in .env.production). A trailing slash, or a pasted "/api/v1", is removed: the path is added once, below.
+const SERVER = String(import.meta.env.VITE_API_BASE_URL || import.meta.env.VITE_API_URL || '').trim().replace(/\/+$/, '').replace(/\/api\/v1$/i, '')
 export const API_BASE = `${SERVER}/api/v1`
 if (import.meta.env.PROD && !SERVER && typeof window !== 'undefined' && !/^(localhost|127\.0\.0\.1)$/.test(window.location.hostname)) {
   // a production build without VITE_API_URL talks to its own host, which only serves the web pages: every API call would fail (404 / 405) until the variable is set and the app rebuilt

@@ -1,0 +1,30 @@
+# Render Blueprint for the backend (optional: the same settings can be typed into the dashboard by hand - see docs/deployment.md).
+# Values marked `sync: false` are secrets: Render asks for them in the dashboard and they are never stored in this repository.
+services:
+  - type: web
+    name: z-business-crm
+    runtime: python
+    rootDir: backend
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /health
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.12.7
+      - key: APP_ENV
+        value: production
+      # the exact address the browser shows for the frontend: no trailing slash, no path (several can be comma-separated)
+      - key: CORS_ORIGINS
+        value: https://z-business-crm.vercel.app
+      # Supabase -> Project Settings -> Database -> connection string. Use the SESSION POOLER string (IPv4); the direct db.<ref>.supabase.co host is IPv6-only and Render cannot reach it.
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET_KEY
+        generateValue: true
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false

@@ -51,6 +51,12 @@ def _body(message: str, code: str, fields: dict | None = None, extra: dict | Non
     return out
 
 
+def unhandled_response() -> JSONResponse:
+    """The answer to an error nobody anticipated. Used by the request middleware (which sits INSIDE the CORS layer, so the browser can read this answer) and as the last-resort handler."""
+    log.exception("unhandled error")
+    return JSONResponse(status_code=500, content=_body("Something went wrong on the server.", "INTERNAL_ERROR"))
+
+
 def install_handlers(app: FastAPI) -> None:
     @app.exception_handler(ApiError)
     async def _api_error(_: Request, exc: ApiError):
@@ -88,5 +94,4 @@ def install_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def _unhandled(_: Request, exc: Exception):
-        log.exception("unhandled error")
-        return JSONResponse(status_code=500, content=_body("Something went wrong on the server.", "INTERNAL_ERROR"))
+        return unhandled_response()

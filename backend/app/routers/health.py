@@ -15,7 +15,8 @@ router = APIRouter(tags=["health"])
 def health() -> dict:
     settings = get_settings()
     missing = settings.missing_configuration()
-    return {"status": "ok", "app": settings.app_name, "environment": settings.app_env, "configured": not missing, "missing_settings": missing}
+    return {"status": "ok", "app": settings.app_name, "environment": settings.app_env, "configured": not missing, "missing_settings": missing, "problems": settings.configuration_problems(),
+            "cors_origins": settings.cors_origins}  # names and reasons only - never a secret value; the allowed origins are public by nature
 
 
 @router.get("/healthz", summary="Readiness: can the API reach its database?")

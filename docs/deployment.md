@@ -46,3 +46,11 @@ The repository also carries `frontend/.env.production` with `VITE_API_URL=https:
 | "Network Error" with a CORS message in the console | the backend `CORS_ORIGINS` does not contain the exact site address |
 | `503` / "service is temporarily unavailable" | `DATABASE_URL` missing or unreachable (see `/healthz`) |
 | `500` on sign-in | `DATABASE_URL` or `JWT_SECRET_KEY` missing on Render (see `/health`) |
+
+## 4. Checking the backend from a browser
+
+* `https://<backend>/health` must show `"configured": true`, `"environment": "production"` and your site's address in `cors_origins`. If not, `problems` names each variable and why it is unusable ("not set", "still a placeholder", "too short"); a value is never shown. The same list is written to the Render log at start-up.
+* `https://<backend>/healthz` must answer `{"status":"ok"}`: it opens a real database connection. `503 DATABASE_UNAVAILABLE` means `DATABASE_URL` is wrong or unreachable - use Supabase's **Session pooler** connection string (IPv4); the direct `db.<ref>.supabase.co` host is IPv6-only and Render cannot reach it.
+* Allowed origins are normalised (quotes and a trailing `/` are removed), but they must otherwise match the address in the browser's bar exactly (`https://z-business-crm.vercel.app`, not a preview URL).
+* Without `CORS_ORIGINS`, the backend allows `http://localhost:5173`, `http://localhost:5178` and `https://z-business-crm.vercel.app`; setting `CORS_ORIGINS` replaces that whole list. A browser preflight can be checked with: `curl -i -X OPTIONS https://<backend>/api/v1/auth/login -H "Origin: https://z-business-crm.vercel.app" -H "Access-Control-Request-Method: POST" -H "Access-Control-Request-Headers: content-type,x-device-id"` - it must answer `200` with `access-control-allow-origin: https://z-business-crm.vercel.app` (a `400 Disallowed CORS origin` means the running version does not allow that origin).
+* `render.yaml` at the repository root describes this service; "New -> Blueprint" fills in every setting except the secrets, which Render asks for.
