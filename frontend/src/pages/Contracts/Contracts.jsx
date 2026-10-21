@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import clsx from 'clsx'
 import { Plus, FileSignature, FileText, ShieldCheck, Hourglass, TimerOff, RefreshCcw, Ban, IndianRupee, Wallet, HandCoins, CalendarClock, AlertTriangle, X, LayoutList, KanbanSquare, CalendarDays, ChevronLeft, ChevronRight, FilePen, ClipboardCheck, Layers } from 'lucide-react'
+import { ExportMenu } from '../../components/common/ExportMenu'
+import { describeFilters } from '../../utils/exporter'
 import { PageHeader } from '../../components/common/PageHeader'
 import { SearchBar } from '../../components/common/SearchBar'
 import { FilterToggleButton } from '../../components/common/FilterPanel'
@@ -167,6 +169,13 @@ export default function Contracts() {
     ...(m.hasFin ? [['Total value', formatCurrency(m.value, { compact: true }), IndianRupee, 'violet'], ['Active value', formatCurrency(m.activeValue, { compact: true }), Wallet, 'emerald'], ['Outstanding', formatCurrency(m.outstanding, { compact: true }), HandCoins, 'rose']] : []),
   ]
   const activeFilters = Object.entries(f).filter(([k, v]) => v !== EMPTY[k]).length
+  // Export: every contract that matches the quick view, search and filters on screen; value only for roles that may see money
+  const exportColumns = [
+    { label: 'Contract #', value: ({ c }) => c.number }, { label: 'Title', value: ({ c }) => c.title }, { label: 'Customer', value: ({ c }) => c.customerName }, { label: 'Owner', value: ({ c }) => getUserById(c.owner)?.name || '' },
+    { label: 'Type', value: ({ c }) => c.contractType }, { label: 'Status', value: ({ status }) => status }, { label: 'Start', value: ({ c }) => c.startDate }, { label: 'End', value: ({ c }) => c.endDate },
+    { label: 'Renewal of', value: ({ c }) => c.renewedFromId || '' }, { label: 'Value', value: ({ billing }) => (billing ? billing.value : ''), align: 'right' }, { label: 'Branch', value: ({ c }) => c.branch },
+  ]
+  const exportFilters = describeFilters([['View', quick !== 'all' && quick], ['Search', search.trim() && `"${search.trim()}"`], ...Object.entries(f).filter(([k, v]) => v !== EMPTY[k]).map(([k, v]) => [k, v])])
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const cur = Math.min(page, totalPages)
   const pageRows = filtered.slice((cur - 1) * PAGE_SIZE, cur * PAGE_SIZE)
@@ -187,7 +196,7 @@ export default function Contracts() {
   return (
     <div>
       <PageHeader title="Contracts" description="Agreements from draft to signature, renewal and billing — linked to the deal, order and project they came from."
-        actions={<>{templatesAllowed && <Button variant="secondary" icon={FileText} onClick={() => navigate('/contracts/templates')}>Templates</Button>}{canCreate && <Button icon={Plus} onClick={() => { setPreset(null); setFormOpen(true) }}>New contract</Button>}</>} />
+        actions={<><ExportMenu title="Contracts" noun="contract" columns={exportColumns} rows={() => filtered} filters={exportFilters} />{templatesAllowed && <Button variant="secondary" icon={FileText} onClick={() => navigate('/contracts/templates')}>Templates</Button>}{canCreate && <Button icon={Plus} onClick={() => { setPreset(null); setFormOpen(true) }}>New contract</Button>}</>} />
 
       {!data ? <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-5">{Array.from({ length: 10 }).map((_, i) => <CardSkeleton key={i} className="h-20" />)}</div> : (
         <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6" aria-label="Contract metrics">
@@ -230,9 +239,9 @@ export default function Contracts() {
       ) : view === 'list' ? (
         <>
           <div role="table" className="overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-card dark:border-ink-800 dark:bg-ink-900">
-            <div role="row" className="hidden grid-cols-[1.7fr_1.1fr_1fr_8rem_6.5rem_6rem_6.5rem_6rem] gap-3 border-b border-ink-100 bg-ink-50/60 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-ink-500 lg:grid dark:border-ink-800 dark:bg-ink-800/40"><span>Contract</span><span>Customer</span><span>Owner</span><span>Type</span><span>Status</span><span>Start</span><span>End</span><span className="text-right">Value</span></div>
+            <div role="row" className="hidden grid-cols-[minmax(0,1.7fr)_minmax(0,1.1fr)_minmax(0,1fr)_8rem_6.5rem_6rem_6.5rem_6rem] gap-3 border-b border-ink-100 bg-ink-50/60 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-ink-500 lg:grid dark:border-ink-800 dark:bg-ink-800/40"><span>Contract</span><span>Customer</span><span>Owner</span><span>Type</span><span>Status</span><span>Start</span><span>End</span><span className="text-right">Value</span></div>
             {pageRows.map(({ c, status, billing }) => (
-              <div key={c.id} role="row" tabIndex={0} onClick={() => open(c)} onKeyDown={(e) => e.key === 'Enter' && open(c)} className="grid cursor-pointer grid-cols-1 items-center gap-2 border-b border-ink-50 px-4 py-3 text-sm last:border-0 hover:bg-ink-50/60 lg:grid-cols-[1.7fr_1.1fr_1fr_8rem_6.5rem_6rem_6.5rem_6rem] lg:gap-3 dark:border-ink-800/60 dark:hover:bg-ink-800/30">
+              <div key={c.id} role="row" tabIndex={0} onClick={() => open(c)} onKeyDown={(e) => e.key === 'Enter' && open(c)} className="grid cursor-pointer grid-cols-1 items-center gap-2 border-b border-ink-50 px-4 py-3 text-sm last:border-0 hover:bg-ink-50/60 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1.1fr)_minmax(0,1fr)_8rem_6.5rem_6rem_6.5rem_6rem] lg:gap-3 dark:border-ink-800/60 dark:hover:bg-ink-800/30">
                 <div className="min-w-0"><p className="truncate font-medium text-ink-900 dark:text-ink-50">{c.title}</p><p className="truncate text-xs text-ink-400">{c.number}{c.renewedFromId ? ' · renewal' : ''}</p></div>
                 <span className="truncate text-ink-600 dark:text-ink-300">{c.customerName}</span>
                 <span className="flex items-center gap-1.5 truncate text-ink-600 dark:text-ink-300"><Avatar name={getUserById(c.owner)?.name} size="xs" />{getUserById(c.owner)?.name}</span>

@@ -102,7 +102,7 @@ export default function DocumentDetail() {
       <Tabs className="mb-5" active={tab} onChange={setTab} tabs={tabs} />
 
       {tab === 'overview' && (
-        <div className="grid gap-5 lg:grid-cols-[1.2fr_1fr]">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)]">
           <div className="min-w-0 space-y-5">
             <Card title="Document information"><dl className="divide-y divide-ink-50 dark:divide-ink-800/60">
               <KV k="Document name">{doc.name}</KV><KV k="Document ID"><span className="font-mono">{doc.id}</span></KV><KV k="Current file">{cur?.fileName}</KV><KV k="Category">{doc.category}</KV>{doc.subCategory && <KV k="Original label">{doc.subCategory}</KV>}
@@ -187,7 +187,7 @@ export default function DocumentDetail() {
       {tab === 'audit' && a.viewAudit && (
         <Card title="Access & audit history" action={<span className="inline-flex items-center gap-1 text-xs text-ink-400"><Info size={12} />Read-only — nobody can edit this trail</span>}>
           {auditError ? <p className="text-sm text-rose-600">{auditError}</p> : !audit ? <CardSkeleton className="h-40" /> : !audit.length ? <p className="text-sm text-ink-400">No audited events yet.</p> : (
-            <div className="overflow-x-auto"><table className="w-full text-sm"><thead><tr className="border-b border-ink-100 text-left text-xs font-semibold uppercase text-ink-400 dark:border-ink-800"><th className="pb-2 pr-3">When</th><th className="pb-2 pr-3">User</th><th className="pb-2 pr-3">Action</th><th className="pb-2 pr-3">Ver.</th><th className="pb-2 pr-3">Result</th><th className="pb-2">Details</th></tr></thead>
+            <div className="overflow-x-auto"><table className="crm-table w-full text-sm"><thead><tr className="border-b border-ink-100 text-left text-xs font-semibold uppercase text-ink-400 dark:border-ink-800"><th className="pb-2 pr-3">When</th><th className="pb-2 pr-3">User</th><th className="pb-2 pr-3">Action</th><th className="pb-2 pr-3">Ver.</th><th className="pb-2 pr-3">Result</th><th className="pb-2">Details</th></tr></thead>
               <tbody>{audit.map((e) => <tr key={e.id} className="border-b border-ink-50 align-top dark:border-ink-800/60"><td className="whitespace-nowrap py-2 pr-3 text-xs text-ink-500">{formatDateTime(e.at)}</td><td className="py-2 pr-3">{e.byName}<span className="block text-[11px] text-ink-400">{e.role || 'System'}</span></td><td className="py-2 pr-3">{e.action}</td><td className="py-2 pr-3 text-xs">{e.version ? `v${e.version}` : '—'}</td><td className="py-2 pr-3"><Badge tone={e.result === 'Success' ? 'success' : 'danger'}>{e.result}</Badge></td><td className="py-2 text-xs text-ink-500">{e.details}{e.relatedType ? ` · ${e.relatedType} ${e.relatedId}` : ''}</td></tr>)}</tbody></table></div>
           )}
         </Card>

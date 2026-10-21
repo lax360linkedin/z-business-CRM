@@ -1,7 +1,9 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import clsx from 'clsx'
-import { Plus, Settings2, ListChecks, UserCheck, CalendarDays, CalendarClock, AlertTriangle, Flag, Loader, CheckCircle2, UserX, Bookmark, X, Lightbulb, RefreshCw } from 'lucide-react'
+import { Plus, Settings2, ListChecks, UserCheck, CalendarDays, CalendarClock, AlertTriangle, Flag, Loader, CheckCircle2, UserX, Bookmark, X, Lightbulb } from 'lucide-react'
+import { ExportMenu } from '../../components/common/ExportMenu'
+import { describeFilters } from '../../utils/exporter'
 import { PageHeader } from '../../components/common/PageHeader'
 import { SearchBar } from '../../components/common/SearchBar'
 import { FilterToggleButton } from '../../components/common/FilterPanel'
@@ -125,6 +127,20 @@ export default function Tasks() {
     types: [...new Set(tasks.map((t) => t.relatedType).filter(Boolean))],
   }), [tasks])
 
+  // Export: the tasks in the open view (tab) that match the search and filters, in the order shown
+  const nameOfUser = (id) => USERS.find((u) => u.id === id)?.name || id
+  const exportColumns = [
+    { label: 'Task ID', value: 'id' }, { label: 'Title', value: 'title' }, { label: 'Type', value: 'taskType' }, { label: 'Priority', value: 'priority' }, { label: 'Status', value: 'status' },
+    { label: 'Due date', value: 'dueDate' }, { label: 'Due time', value: 'dueTime' }, { label: 'Overdue', value: (t) => (t.overdue ? 'Yes' : 'No') }, { label: 'Assigned to', value: (t) => (t.assignees || []).map(nameOfUser).join(', ') },
+    { label: 'Department', value: 'department' }, { label: 'Related type', value: 'relatedType' }, { label: 'Related to', value: 'relatedName' }, { label: 'Created', value: (t) => String(t.createdAt || '').slice(0, 10) },
+    { label: 'Completed', value: (t) => String(t.completedAt || '').slice(0, 10) }, { label: 'Branch', value: 'branch' },
+  ]
+  const exportFilters = describeFilters([
+    ['View', VIEWS.find((v) => v.id === view)?.label], ['Search', search.trim() && `"${search.trim()}"`], ['Assignee', f.assignee !== 'all' && (f.assignee === 'none' ? 'Unassigned' : nameOfUser(f.assignee))],
+    ['Created by', f.createdBy !== 'all' && nameOfUser(f.createdBy)], ['Team', f.team], ['Department', f.department], ['Status', f.status], ['Priority', f.priority], ['Type', f.taskType], ['Overdue only', f.overdue && 'Yes'],
+    ['Related type', f.relatedType], ['Related to', f.relatedText], ['Due from', f.dueFrom], ['Due to', f.dueTo], ['Created from', f.createdFrom], ['Created to', f.createdTo], ['Completed from', f.completedFrom], ['Completed to', f.completedTo],
+  ])
+
   const saveFilter = () => {
     api.post('/tasks/filters', { name: saveName, view, filters: { ...f, search } }).then(() => { toast(`Saved filter “${saveName.trim()}”.`, { type: 'success' }); setSaveOpen(false); setSaveName(''); setSaveErr(''); loadSide() }).catch((e) => setSaveErr(errMsg(e)))
   }
@@ -140,7 +156,7 @@ export default function Tasks() {
         description={me ? `${summary?.metrics.mine ?? '…'} open task${summary?.metrics.mine === 1 ? '' : 's'} assigned to you · ${summary?.metrics.overdue ?? '…'} overdue in your scope.` : 'Your central work and follow-up list.'}
         actions={<>
           {isAdmin && <Link to="/tasks/settings"><Button variant="secondary" icon={Settings2}>Task settings</Button></Link>}
-          <Button variant="secondary" icon={RefreshCw} onClick={() => { reload(); loadSide() }} aria-label="Refresh tasks">Refresh</Button>
+          <ExportMenu title="Tasks" noun="task" columns={exportColumns} rows={() => shown} filters={exportFilters} />
           {perms.create && <Button icon={Plus} onClick={() => { setPreset(null); setCreateOpen(true) }}>New task</Button>}
         </>}
       />

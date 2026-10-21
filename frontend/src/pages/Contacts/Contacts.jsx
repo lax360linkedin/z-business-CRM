@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Trash2, Mail, Phone, Building2 } from 'lucide-react'
+import { ExportMenu } from '../../components/common/ExportMenu'
+import { filterText } from '../../utils/exporter'
 import { PageHeader } from '../../components/common/PageHeader'
 import { SearchBar } from '../../components/common/SearchBar'
 import { FilterPanel, FilterToggleButton } from '../../components/common/FilterPanel'
@@ -44,6 +46,13 @@ export default function Contacts() {
     { key: 'designation', label: 'Designations', options: DESIGNATIONS.map((d) => ({ value: d, label: d })) },
   ]
 
+  // Export: every contact that matches the search and filters on screen
+  const exportColumns = [
+    { label: 'Contact ID', value: 'id' }, { label: 'Name', value: 'name' }, { label: 'Designation', value: 'designation' }, { label: 'Company', value: 'companyName' },
+    { label: 'Email', value: 'email' }, { label: 'Phone', value: 'phone' }, { label: 'WhatsApp', value: 'whatsapp' }, { label: 'Groups', value: (c) => (c.groups || []).join(', ') }, { label: 'Branch', value: 'branch' },
+  ]
+  const exportFilters = filterText({ search: crud.search, values: crud.filters, defs: filterDefs })
+
   const createContact = (data) => {
     setSaving(true)
     const company = COMPANIES.find((c) => c.id === data.companyId)
@@ -75,7 +84,7 @@ export default function Contacts() {
       <PageHeader
         title="Contacts"
         description="Your business contact directory across every company."
-        actions={<Button icon={Plus} onClick={() => setCreateOpen(true)}>Add Contact</Button>}
+        actions={<><ExportMenu title="Contacts" noun="contact" columns={exportColumns} rows={() => crud.allFiltered} filters={exportFilters} /><Button icon={Plus} onClick={() => setCreateOpen(true)}>Add Contact</Button></>}
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-2.5">

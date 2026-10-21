@@ -4,6 +4,8 @@ import { useProducts, useServiceCatalog, useAllServiceNames } from '../../hooks/
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import clsx from 'clsx'
 import { Plus, Trash2, Kanban, Table as TableIcon, IndianRupee, Scale, Trophy, XCircle } from 'lucide-react'
+import { ExportMenu } from '../../components/common/ExportMenu'
+import { filterText } from '../../utils/exporter'
 import { PageHeader } from '../../components/common/PageHeader'
 import { SearchBar } from '../../components/common/SearchBar'
 import { FilterPanel, FilterToggleButton } from '../../components/common/FilterPanel'
@@ -86,10 +88,19 @@ export default function Deals() {
 
   const openDeal = (row) => navigate(`/deals/${row.id}`)
 
+  // Export: every deal that matches the search, filters and your data scope (the Kanban and the table show the same deals)
+  const exportColumns = [
+    { label: 'Deal ID', value: 'id' }, { label: 'Deal', value: 'name' }, { label: 'Company', value: 'companyName' }, { label: 'Contact', value: 'contactName' }, { label: 'Service', value: 'service' },
+    { label: 'Value', value: (d) => Number(d.value) || 0, align: 'right' }, { label: 'Probability %', value: (d) => Number(d.probability) || 0, align: 'right' }, { label: 'Stage', value: 'stage' },
+    { label: 'Priority', value: 'priority' }, { label: 'Salesperson', value: (d) => getUserById(d.salesperson)?.name || '' }, { label: 'Expected closing', value: 'expectedClosingDate' },
+    { label: 'Next follow-up', value: 'nextFollowUp' }, { label: 'Created', value: 'createdDate' }, { label: 'Branch', value: 'branch' },
+  ]
+  const exportFilters = filterText({ search: crud.search, values: crud.filters, defs: filterDefs })
+
   const columns = [
-    { key: 'id', header: 'Deal ID', sortable: true, className: 'font-medium text-ink-500 text-xs' },
+    { key: 'id', width: 110, header: 'Deal ID', sortable: true, className: 'font-medium text-ink-500 text-xs' },
     {
-      key: 'name', header: 'Deal Name', sortable: true,
+      key: 'name', width: 240, header: 'Deal Name', sortable: true,
       render: (row) => (
         <div className="flex items-center gap-2.5">
           <Avatar name={row.companyName} size="sm" />
@@ -100,16 +111,16 @@ export default function Deals() {
         </div>
       ),
     },
-    { key: 'contactName', header: 'Contact' },
-    { key: 'service', header: 'Service' },
-    { key: 'value', header: 'Deal Value', sortable: true, render: (row) => formatCurrency(row.value) },
-    { key: 'probability', header: 'Probability', sortable: true, render: (row) => `${row.probability}%` },
-    { key: 'expectedClosingDate', header: 'Expected Closing', sortable: true, render: (row) => formatDate(row.expectedClosingDate) },
-    { key: 'salesperson', header: 'Salesperson', render: (row) => getUserById(row.salesperson)?.name.split(' ')[0] || '—' },
-    { key: 'stage', header: 'Stage', render: (row) => <StatusBadge status={row.stage} /> },
-    { key: 'priority', header: 'Priority', render: (row) => <PriorityBadge priority={row.priority} /> },
+    { key: 'contactName', width: 180, header: 'Contact' },
+    { key: 'service', width: 190, header: 'Service' },
+    { key: 'value', width: 140, header: 'Deal Value', sortable: true, render: (row) => formatCurrency(row.value) },
+    { key: 'probability', width: 120, header: 'Probability', sortable: true, render: (row) => `${row.probability}%` },
+    { key: 'expectedClosingDate', width: 160, header: 'Expected Closing', sortable: true, render: (row) => formatDate(row.expectedClosingDate) },
+    { key: 'salesperson', width: 150, header: 'Salesperson', render: (row) => getUserById(row.salesperson)?.name.split(' ')[0] || '—' },
+    { key: 'stage', width: 170, header: 'Stage', render: (row) => <StatusBadge status={row.stage} /> },
+    { key: 'priority', width: 120, header: 'Priority', render: (row) => <PriorityBadge priority={row.priority} /> },
     {
-      key: 'nextFollowUp', header: 'Next Follow-up', sortable: true,
+      key: 'nextFollowUp', width: 150, header: 'Next Follow-up', sortable: true,
       render: (row) => row.nextFollowUp ? <span className={isOverdue(row.nextFollowUp) ? 'font-medium text-rose-500' : ''}>{formatDate(row.nextFollowUp)}</span> : '—',
     },
     {
@@ -221,6 +232,7 @@ export default function Deals() {
                 <TableIcon size={15} /> Table View
               </button>
             </div>
+            <ExportMenu title="Deals" noun="deal" columns={exportColumns} rows={() => crud.allFiltered} filters={exportFilters} />
             <Button icon={Plus} onClick={() => setCreateOpen(true)}>Add Deal</Button>
           </>
         }

@@ -7,6 +7,9 @@
     "dev": "vite",
     "build": "vite build",
     "lint": "oxlint",
+    "check:help": "node scripts/check-help.mjs",
+    "check:import": "node scripts/check-import-kit.mjs",
+    "check:export": "node scripts/check-export.mjs",
     "preview": "vite preview"
   },
   "dependencies": {
@@ -14,6 +17,7 @@
     "axios-mock-adapter": "^2.1.0",
     "clsx": "^2.1.1",
     "framer-motion": "^13.1.0",
+    "jszip": "^3.10.2",
     "lucide-react": "^1.31.0",
     "mammoth": "^1.13.0",
     "pdf-lib": "^1.17.1",

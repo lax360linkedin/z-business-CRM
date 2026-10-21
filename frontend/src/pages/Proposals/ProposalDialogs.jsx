@@ -103,7 +103,7 @@ export function ClientRefreshDialog({ open, onClose, proposal, onRefreshed }) {
       {!diff ? <p className="py-6 text-center text-sm text-ink-400">Comparing…</p> : !diff.changes.length ? <p className="py-6 text-center text-sm text-emerald-600">The proposal already matches the master record.</p> : (
         <div className="space-y-3">
           <div className="overflow-hidden rounded-xl border border-ink-100 dark:border-ink-800">
-            <table className="w-full text-sm"><thead><tr className="border-b border-ink-100 bg-ink-50/60 text-left text-xs font-semibold uppercase text-ink-500 dark:border-ink-800 dark:bg-ink-800/40"><th className="px-3 py-2">Field</th><th className="px-3 py-2">In this proposal</th><th className="px-3 py-2">Master record now</th></tr></thead>
+            <table className="crm-table crm-table-wrap w-full text-sm"><thead><tr className="border-b border-ink-100 bg-ink-50/60 text-left text-xs font-semibold uppercase text-ink-500 dark:border-ink-800 dark:bg-ink-800/40"><th className="px-3 py-2">Field</th><th className="px-3 py-2">In this proposal</th><th className="px-3 py-2">Master record now</th></tr></thead>
               <tbody>{diff.changes.map((c) => <tr key={c.key} className="border-b border-ink-50 last:border-0 dark:border-ink-800/60"><td className="px-3 py-2 font-medium text-ink-700 dark:text-ink-200">{c.label}</td><td className="px-3 py-2 text-ink-500">{c.from || '—'}</td><td className="px-3 py-2 text-emerald-700 dark:text-emerald-400">{c.to || '—'}</td></tr>)}</tbody></table>
           </div>
           {!diff.editable && <p className="text-xs text-amber-600">This version has been sent, so it keeps its original client details. Create a revision to pick up the changes — the sent version stays untouched.</p>}

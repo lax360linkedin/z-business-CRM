@@ -1,5 +1,10 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { History as HistoryIcon } from 'lucide-react'
+import { ExportMenu } from '../../components/common/ExportMenu'
+import { filterText } from '../../utils/exporter'
+import { useRefreshHandler } from '../../api/refresh'
+import { formatDateTime } from '../../utils/format'
+import { getUserById } from '../../data/users'
 import { PageHeader } from '../../components/common/PageHeader'
 import { SearchBar } from '../../components/common/SearchBar'
 import { FilterPanel, FilterToggleButton } from '../../components/common/FilterPanel'
@@ -23,12 +28,14 @@ export default function CommunicationHistory({ channel }) {
   const [filters, setFilters] = useState({})
   const [filtersOpen, setFiltersOpen] = useState(false)
 
-  useEffect(() => {
-    setLoading(true)
-    api.get('/activities', { params: { all: true } })
+  const load = useCallback((quiet) => {
+    if (quiet !== true) setLoading(true)
+    return api.get('/activities', { params: { all: true } })
       .then((res) => setActivities(res.data.filter((a) => (channel ? a.type === channel : COMM_TYPES.includes(a.type)))))
       .finally(() => setLoading(false))
   }, [channel])
+  useEffect(() => { load() }, [load])
+  useRefreshHandler(() => load(true))
 
   const entityOptions = useMemo(() => {
     const seen = new Map()
@@ -54,6 +61,12 @@ export default function CommunicationHistory({ channel }) {
     return list
   }, [activities, search, filters])
 
+  // Export: every logged communication that matches the search and filters on screen, newest first
+  const exportColumns = [
+    { label: 'Date', value: (a) => formatDateTime(a.date) }, { label: 'Channel', value: 'type' }, { label: 'Related type', value: 'relatedType' }, { label: 'Related to', value: 'relatedName' },
+    { label: 'Subject', value: 'subject' }, { label: 'Notes', value: 'notes' }, { label: 'Logged by', value: (a) => getUserById(a.by)?.name || (a.by ? a.by : 'System') }, { label: 'Status', value: 'status' },
+  ]
+  const exportFilters = filterText({ search, values: filters, defs: filterDefs })
   const groups = useMemo(() => {
     const map = new Map()
     filtered.forEach((a) => {
@@ -71,6 +84,7 @@ export default function CommunicationHistory({ channel }) {
   return (
     <div>
       <PageHeader
+        actions={<ExportMenu title={channel ? `${channel} log` : 'Communication History'} noun="entry" columns={exportColumns} rows={() => [...filtered].sort((a, b) => new Date(b.date) - new Date(a.date))} filters={exportFilters} />}
         title={channel ? `${channel} log` : 'Communication History'}
         description={channel ? `Every ${channel === 'Email' ? 'email' : 'WhatsApp message'} logged against your customers, leads and deals.` : 'A unified, chronological view of every call, email, WhatsApp message, and meeting across your customers and leads.'}
       />

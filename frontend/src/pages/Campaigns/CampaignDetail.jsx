@@ -142,7 +142,7 @@ export default function CampaignDetail() {
       <Tabs className="mb-5" active={tab} onChange={setTab} tabs={tabs} />
 
       {tab === 'overview' && (
-        <div className="grid gap-5 lg:grid-cols-[1.3fr_1fr]">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
           <Card title="Campaign details"><dl className="divide-y divide-ink-50 dark:divide-ink-800/60">
             <KV k="Campaign ID"><span className="font-mono">{c.number}</span></KV><KV k="Status">{c.status}</KV><KV k="Type">{c.type}</KV><KV k="Marketing channel">{c.channel}</KV><KV k="Lead source">{c.leadSourceName}</KV><KV k="Start date">{formatDate(c.startDate)}</KV><KV k="End date">{formatDate(c.endDate)}</KV>
             {fin && <><KV k="Budget">{fmtMoney(c.budget)}</KV><KV k="Actual spend">{fmtMoney(c.spend)}</KV></>}<KV k="Target leads">{c.targetLeads || '—'}</KV><KV k="Target audience">{c.targetAudience || '—'}</KV><KV k="Owner">{c.ownerName}</KV><KV k="Assigned team">{c.teamNames.join(', ') || '—'}</KV><KV k="Products / services">{c.productNames.join(', ') || '—'}</KV><KV k="Created by">{getUserById(c.createdBy)?.name || 'Imported record'}</KV>{c.description && <KV k="Description">{c.description}</KV>}
@@ -176,7 +176,7 @@ export default function CampaignDetail() {
       {tab === 'spend' && fin && (
         <Card title="Actual spend" action={a.recordSpend ? <Button size="sm" icon={IndianRupee} onClick={() => setDlg('spend')}>Record spend</Button> : null}>
           {!(c.costs || []).length ? <EmptyState icon={IndianRupee} title="No spend recorded" description="Record spend as it happens, or link approved expenses to this campaign (Expenses → Marketing campaign)." /> : (
-            <div className="overflow-x-auto"><table className="w-full min-w-[480px] text-sm"><thead><tr className="border-b border-ink-100 text-left text-xs font-semibold uppercase text-ink-400 dark:border-ink-800"><th className="pb-2">Date</th><th className="pb-2">For</th><th className="pb-2">Recorded by</th><th className="pb-2 text-right">Amount</th></tr></thead>
+            <div className="overflow-x-auto"><table className="crm-table w-full min-w-[480px] text-sm"><thead><tr className="border-b border-ink-100 text-left text-xs font-semibold uppercase text-ink-400 dark:border-ink-800"><th className="pb-2">Date</th><th className="pb-2">For</th><th className="pb-2">Recorded by</th><th className="pb-2 text-right">Amount</th></tr></thead>
               <tbody>{[...c.costs].sort((x, y) => String(y.date).localeCompare(String(x.date))).map((x) => <tr key={x.id} className="border-b border-ink-50 dark:border-ink-800/60"><td className="py-2.5">{formatDate(x.date)}</td><td>{x.note}</td><td>{getUserById(x.by)?.name || 'Imported'}</td><td className="text-right font-medium">{formatCurrency(x.amount)}</td></tr>)}</tbody></table></div>
           )}
           <p className="mt-3 text-xs text-ink-400">Total actual spend {fmtMoney(c.spend)} includes approved expenses linked to this campaign. Spend lines are a financial record and cannot be edited.</p>

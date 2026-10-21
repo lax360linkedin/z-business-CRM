@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Download, Eye, Plus, ClipboardList, Truck, IndianRupee, CheckCircle2, Receipt, FileText } from 'lucide-react'
+import { Eye, Plus, ClipboardList, Truck, IndianRupee, CheckCircle2, Receipt, FileText } from 'lucide-react'
 import { PageHeader } from '../../components/common/PageHeader'
 import { SearchBar } from '../../components/common/SearchBar'
 import { FilterPanel, FilterToggleButton } from '../../components/common/FilterPanel'
@@ -18,7 +18,8 @@ import { api } from '../../api/mockServer'
 import { SALES_ORDER_STATUSES } from '../../data/constants'
 import { salesUsers, getUserById } from '../../data/users'
 import { formatCurrency, formatDate } from '../../utils/format'
-import { downloadCsv } from '../../utils/csv'
+import { ExportMenu } from '../../components/common/ExportMenu'
+import { filterText } from '../../utils/exporter'
 import { paymentStatusOf, PAYMENT_STATUS_TONES, SO_OPEN_STATUSES, fulfilmentPercent } from '../../utils/salesOrderCalc'
 
 const PAYMENT_FILTER = ['Unbilled', 'Invoiced', 'Partially Paid', 'Paid', 'Overdue']
@@ -105,28 +106,29 @@ export default function SalesOrders() {
   const clearAll = () => { crud.setFilters({}); setRange({ from: '', to: '' }); setPayFilter('all') }
 
   const columns = [
-    { key: 'number', header: 'Sales Order #', sortable: true, render: (row) => <span className="font-medium text-ink-800 dark:text-ink-100">{row.number}{row.revision > 1 && <span className="ml-1.5 text-[10px] font-semibold text-brand-600">R{row.revision}</span>}</span> },
-    { key: 'customerName', header: 'Customer', sortable: true },
-    { key: 'quotationNumber', header: 'Quotation', render: (row) => row.quotationNumber || '—' },
-    { key: 'dealId', header: 'Deal', render: (row) => row.dealId || '—' },
-    { key: 'orderDate', header: 'Order date', sortable: true, render: (row) => formatDate(row.orderDate) },
-    { key: 'amount', header: 'Amount', sortable: true, render: (row) => <span className="font-medium">{formatCurrency(row.amount)}</span> },
-    { key: 'expectedDeliveryDate', header: 'Delivery', sortable: true, render: (row) => formatDate(row.expectedDeliveryDate) },
-    { key: 'status', header: 'Status', render: (row) => <StatusBadge status={row.status} /> },
-    { key: 'fulfil', header: 'Fulfilled', render: (row) => <span className="text-xs text-ink-500">{fulfilmentPercent(row.items)}%</span> },
-    { key: 'payment', header: 'Billing', render: (row) => { const s = paymentStatusOf(row, invoiceById[row.invoiceId]); return <Badge tone={PAYMENT_STATUS_TONES[s]}>{s}</Badge> } },
-    { key: 'salesperson', header: 'Owner', render: (row) => getUserById(row.salesperson)?.name.split(' ')[0] || '—' },
+    { key: 'number', width: 190, header: 'Sales Order #', sortable: true, render: (row) => <span className="font-medium text-ink-800 dark:text-ink-100">{row.number}{row.revision > 1 && <span className="ml-1.5 text-[10px] font-semibold text-brand-600">R{row.revision}</span>}</span> },
+    { key: 'customerName', width: 210, header: 'Customer', sortable: true },
+    { key: 'quotationNumber', width: 160, header: 'Quotation', render: (row) => row.quotationNumber || '—' },
+    { key: 'dealId', width: 110, header: 'Deal', render: (row) => row.dealId || '—' },
+    { key: 'orderDate', width: 130, header: 'Order date', sortable: true, render: (row) => formatDate(row.orderDate) },
+    { key: 'amount', width: 140, header: 'Amount', sortable: true, render: (row) => <span className="font-medium">{formatCurrency(row.amount)}</span> },
+    { key: 'expectedDeliveryDate', width: 130, header: 'Delivery', sortable: true, render: (row) => formatDate(row.expectedDeliveryDate) },
+    { key: 'status', width: 140, header: 'Status', render: (row) => <StatusBadge status={row.status} /> },
+    { key: 'fulfil', width: 110, header: 'Fulfilled', render: (row) => <span className="text-xs text-ink-500">{fulfilmentPercent(row.items)}%</span> },
+    { key: 'payment', width: 130, header: 'Billing', render: (row) => { const s = paymentStatusOf(row, invoiceById[row.invoiceId]); return <Badge tone={PAYMENT_STATUS_TONES[s]}>{s}</Badge> } },
+    { key: 'salesperson', width: 140, header: 'Owner', render: (row) => getUserById(row.salesperson)?.name.split(' ')[0] || '—' },
     { key: 'actions', header: '', headerClassName: 'w-10', render: (row) => <div className="flex justify-end" onClick={(e) => e.stopPropagation()}><IconButton icon={Eye} size="sm" aria-label="Open" onClick={() => navigate(`/sales-orders/${row.id}`)} /></div> },
   ]
 
-  const handleExport = () => {
-    downloadCsv('sales-orders.csv', crud.allFiltered, [
-      { label: 'Sales Order #', value: 'number' }, { label: 'Customer', value: 'customerName' }, { label: 'Quotation', value: 'quotationNumber' }, { label: 'Deal', value: 'dealId' },
-      { label: 'Order Date', value: 'orderDate' }, { label: 'Subtotal', value: 'subtotal' }, { label: 'Tax', value: 'tax' }, { label: 'Amount', value: 'amount' },
-      { label: 'Status', value: 'status' }, { label: 'Expected Delivery', value: 'expectedDeliveryDate' },
-    ])
-    toast(`Exported ${crud.allFiltered.length} sales orders.`, { type: 'success' })
-  }
+  // Export: every sales order that matches the search and filters on screen
+  const exportColumns = [
+    { label: 'Sales Order #', value: 'number' }, { label: 'Customer', value: 'customerName' }, { label: 'Quotation', value: 'quotationNumber' }, { label: 'Deal', value: 'dealId' },
+    { label: 'Order Date', value: 'orderDate' }, { label: 'Subtotal', value: (r) => Number(r.subtotal) || 0, align: 'right' }, { label: 'Tax', value: (r) => Number(r.tax) || 0, align: 'right' },
+    { label: 'Amount', value: (r) => Number(r.amount) || 0, align: 'right' }, { label: 'Status', value: 'status' }, { label: 'Fulfilled %', value: (r) => fulfilmentPercent(r.items), align: 'right' },
+    { label: 'Billing', value: (r) => paymentStatusOf(r, invoiceById[r.invoiceId]) }, { label: 'Owner', value: (r) => getUserById(r.salesperson)?.name || '' },
+    { label: 'Expected Delivery', value: 'expectedDeliveryDate' },
+  ]
+  const exportFilters = filterText({ search: crud.search, values: crud.filters, defs: filterDefs, extra: [['Order date from', range.from], ['Order date to', range.to], ['Billing', payFilter]] })
 
   return (
     <div>
@@ -135,7 +137,7 @@ export default function SalesOrders() {
         description="Confirmed customer orders created from accepted quotations — track fulfilment, invoicing and payment in one place."
         actions={
           <>
-            <Button variant="secondary" icon={Download} onClick={handleExport}>Export</Button>
+            <ExportMenu title="Sales Orders" noun="sales order" columns={exportColumns} rows={() => crud.allFiltered} filters={exportFilters} />
             {hasPermission('Sales Orders', 'create') && <Button icon={Plus} onClick={() => setPickerOpen(true)}>New Sales Order</Button>}
           </>
         }

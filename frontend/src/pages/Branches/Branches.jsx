@@ -1,6 +1,8 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
+import { PageExport } from '../../components/common/PageExport'
 import { useNavigate } from 'react-router-dom'
 import { MapPin, Users, Eye, UserCog, UserPlus, ShieldCheck, Power, Info } from 'lucide-react'
+import { Breadcrumbs } from '../../components/common/Breadcrumbs'
 import { PageHeader } from '../../components/common/PageHeader'
 import { Button } from '../../components/common/Button'
 import { Badge, StatusBadge } from '../../components/common/Badge'
@@ -20,6 +22,7 @@ const COVERAGE = {
 
 /** Branch Management (Super Admin): the branches, their status and a side-by-side comparison. Opening a branch switches the global branch selector to it. */
 export default function Branches() {
+  const root = useRef(null)
   const navigate = useNavigate()
   const { toast } = useToast()
   const { user } = useAuth()
@@ -43,8 +46,8 @@ export default function Branches() {
   }
 
   return (
-    <div>
-      <PageHeader title="Branch Management" description="Salem, Mumbai and Bangalore at a glance. Open a branch to work in it; the branch selector in the header changes the scope of every screen." />
+    <div ref={root}>
+      <PageHeader title="Branch Management" breadcrumb={<Breadcrumbs items={[{ label: 'Administration', href: '/administration' }, { label: 'Branches' }]} />} description="Salem, Mumbai and Bangalore at a glance. Open a branch to work in it; the branch selector in the header changes the scope of every screen." actions={<PageExport rootRef={root} title="Branch Management" subtitle="Branch comparison" />} />
 
       <div className="mb-6 grid gap-4 md:grid-cols-3">
         {branches.map((b) => {
@@ -76,17 +79,17 @@ export default function Branches() {
                   <ul className="mt-2 divide-y divide-ink-50 text-sm dark:divide-ink-800/60">
                     {b.admins.map((a) => (
                       <li key={a.id} className="flex items-center justify-between gap-2 py-1.5">
-                        <button type="button" onClick={() => navigate(`/user-management/${a.id}`)} className="truncate text-left font-medium text-brand-700 hover:underline dark:text-brand-300">{a.name}</button>
+                        <button type="button" onClick={() => navigate(`/administration/users/${a.id}`)} className="truncate text-left font-medium text-brand-700 hover:underline dark:text-brand-300">{a.name}</button>
                         <span className="truncate text-[11px] text-ink-400">{a.username}</span>
                       </li>
                     ))}
                   </ul>
                 )}
-                <Button size="sm" variant="secondary" icon={UserPlus} className="mt-2" onClick={() => navigate(`/user-management?addAdmin=${encodeURIComponent(b.name)}`)} disabled={b.status !== 'Active'}>Add admin for {b.name}</Button>
+                <Button size="sm" variant="secondary" icon={UserPlus} className="mt-2" onClick={() => navigate(`/administration/users?addAdmin=${encodeURIComponent(b.name)}`)} disabled={b.status !== 'Active'}>Add admin for {b.name}</Button>
               </div>
               <div className="mt-4 flex flex-wrap gap-2">
                 <Button size="sm" icon={Eye} onClick={() => openBranch(b.name, '/dashboard')} disabled={b.status !== 'Active'}>Open branch</Button>
-                <Button size="sm" variant="secondary" icon={UserCog} onClick={() => navigate(`/user-management?branch=${encodeURIComponent(b.name)}`)}>Users</Button>
+                <Button size="sm" variant="secondary" icon={UserCog} onClick={() => navigate(`/administration/users?branch=${encodeURIComponent(b.name)}`)}>Users</Button>
                 <Button size="sm" variant="ghost" icon={Power} onClick={() => setConfirm(b)}>{b.status === 'Active' ? 'Deactivate' : 'Activate'}</Button>
               </div>
             </section>
@@ -97,7 +100,7 @@ export default function Branches() {
       <div className="overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-card dark:border-ink-800 dark:bg-ink-900">
         <div className="flex items-center gap-2 border-b border-ink-100 px-5 py-3 dark:border-ink-800"><Users size={15} className="text-ink-400" /><h2 className="text-sm font-semibold text-ink-900 dark:text-ink-50">Branch comparison</h2></div>
         <div className="scrollbar-thin overflow-x-auto">
-          <table className="w-full min-w-[820px] border-collapse text-sm">
+          <table className="crm-table w-full min-w-[820px] border-collapse text-sm">
             <thead><tr className="border-b border-ink-100 bg-ink-50/60 dark:border-ink-800 dark:bg-ink-800/40">
               <th className="px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-ink-500">Branch</th>
               {SUMMARY_COLUMNS.map(([k, label]) => <th key={k} className="px-3 py-2.5 text-right text-xs font-semibold uppercase tracking-wide text-ink-500">{label}</th>)}

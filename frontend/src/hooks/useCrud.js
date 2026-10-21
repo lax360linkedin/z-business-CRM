@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api } from '../api/mockServer'
 import { put as putList } from '../api/store'
+import { useRefreshHandler } from '../api/refresh'
 
 /**
  * Generic list+CRUD hook backed by the mock REST API for a given resource path.
@@ -15,8 +16,8 @@ export function useCrud(resource, { searchFields = [], pageSize = 10, filterFn =
   const [sort, setSort] = useState(null)
   const [page, setPage] = useState(1)
 
-  const fetchAll = useCallback(() => {
-    setLoading(true)
+  const fetchAll = useCallback((quiet = false) => {
+    if (quiet !== true) setLoading(true) // a refresh keeps the rows on screen while the new ones load
     setError(null)
     return api
       .get(`/${resource}`, { params: { all: true } })
@@ -28,6 +29,7 @@ export function useCrud(resource, { searchFields = [], pageSize = 10, filterFn =
   useEffect(() => {
     fetchAll()
   }, [fetchAll])
+  useRefreshHandler(() => fetchAll(true))
 
   const filtered = useMemo(() => {
     let list = [...items]

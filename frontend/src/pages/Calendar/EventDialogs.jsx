@@ -185,7 +185,7 @@ export function EventFormDialog({ open, onClose, onSaved, preset }) {
         {f.type === 'Meeting' && <FormField label="Meeting type"><Select value={f.meetingType} onChange={(e) => set({ meetingType: e.target.value })}>{MEETING_TYPES.map((m) => <option key={m}>{m}</option>)}</Select></FormField>}
         {def.location && <FormField label="Location" required error={errors.location}><Input value={f.location} onChange={(e) => set({ location: e.target.value })} placeholder="Address or site name" error={errors.location} /></FormField>}
         <FormField label={`CRM record${def.needsRecord ? '' : ' (optional)'}`} required={def.needsRecord} error={errors.relatedId || errors.relatedType} hint={locked ? 'Scheduled from this record.' : def.needsRecord ? 'The event is stored on this record and appears on its timeline.' : 'Leave empty for a personal task or reminder.'}>
-          <div className="grid grid-cols-[9rem_1fr] gap-2">
+          <div className="grid grid-cols-[9rem_minmax(0,1fr)] gap-2">
             <Select aria-label="Record type" value={f.relatedType} disabled={locked} onChange={(e) => set({ relatedType: e.target.value, relatedId: '' })}>
               {Object.values(TASK_RELATED_BY_TYPE).filter((r) => !['Project', 'Product', 'Campaign'].includes(r.type) || !def.needsRecord).map((r) => <option key={r.type}>{r.type}</option>)}
             </Select>

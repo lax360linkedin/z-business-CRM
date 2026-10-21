@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, LayoutList, History, Eye, CheckCircle2, Download, ListChecks, CalendarClock, AlertTriangle, CalendarDays, UserCheck } from 'lucide-react'
+import { Plus, LayoutList, History, Eye, CheckCircle2, ListChecks, CalendarClock, AlertTriangle, CalendarDays, UserCheck } from 'lucide-react'
 import { PageHeader } from '../../components/common/PageHeader'
 import { SearchBar } from '../../components/common/SearchBar'
 import { FilterToggleButton } from '../../components/common/FilterPanel'
@@ -15,7 +15,8 @@ import { useAuth } from '../../context/AuthContext'
 import { api } from '../../api/mockServer'
 import { getUserById, USERS } from '../../data/users'
 import { formatDateTime } from '../../utils/format'
-import { downloadCsv } from '../../utils/csv'
+import { ExportMenu } from '../../components/common/ExportMenu'
+import { describeFilters } from '../../utils/exporter'
 import { ACTIVITY_TYPE_NAMES, RELATED_TYPES, RELATED_BY_TYPE, canonicalType, effectiveStatus, relatedHref, isSystemEvent } from '../../utils/activityRules'
 import { LogActivityDialog, useCrmLookup } from './LogActivityDialog'
 import ActivityDetailDialog from './ActivityDetailDialog'
@@ -90,23 +91,23 @@ export default function Activities() {
   const quickComplete = (a) => api.post(`/activities/${a.id}/complete`, {}).then(() => { toast('Marked complete.', { type: 'success' }); refresh() }).catch((e) => toast(e?.response?.data?.message || 'Could not update.', { type: 'error' }))
 
   const columns = [
-    { key: 'type', header: 'Type', render: (r) => <Badge tone={TYPE_TONE[canonicalType(r)] || 'info'}>{canonicalType(r) === 'System event' ? r.type : canonicalType(r)}</Badge> },
-    { key: 'subject', header: 'Subject', sortable: true, render: (r) => <span className="line-clamp-1 max-w-[260px] font-medium text-ink-800 dark:text-ink-100">{r.subject}</span> },
+    { key: 'type', width: 140, header: 'Type', render: (r) => <Badge tone={TYPE_TONE[canonicalType(r)] || 'info'}>{canonicalType(r) === 'System event' ? r.type : canonicalType(r)}</Badge> },
+    { key: 'subject', width: 280, header: 'Subject', sortable: true, render: (r) => <span className="line-clamp-1 max-w-[260px] font-medium text-ink-800 dark:text-ink-100">{r.subject}</span> },
     {
-      key: 'relatedName', header: 'Related to',
+      key: 'relatedName', width: 220, header: 'Related to',
       render: (r) => (
         <button onClick={(e) => { e.stopPropagation(); const h = relatedHref(r.relatedType, r.relatedId); if (h) navigate(h) }} className="inline-flex max-w-[220px] items-center gap-1.5 text-left text-xs font-medium text-ink-700 hover:text-brand-600 dark:text-ink-200">
           <Badge tone="neutral">{r.relatedType}</Badge><span className="truncate">{r.relatedName}</span>
         </button>
       ),
     },
-    { key: 'links', header: 'Linked', render: (r) => { const n = Object.keys(r.links || {}).length; return <span className="text-xs text-ink-500" title={Object.keys(r.links || {}).join(', ')}>{n} record{n === 1 ? '' : 's'}</span> } },
-    { key: 'by', header: 'Logged by', render: (r) => getUserById(r.by)?.name || (r.by ? r.by : 'System') },
-    { key: 'assignedTo', header: 'Assigned', render: (r) => getUserById(r.assignedTo)?.name.split(' ')[0] || '—' },
-    { key: 'date', header: 'Date', sortable: true, render: (r) => formatDateTime(r.date) },
-    { key: 'status', header: 'Status', render: (r) => <Badge tone={STATUS_TONE[effectiveStatus(r)] || 'neutral'}>{effectiveStatus(r)}</Badge> },
+    { key: 'links', width: 100, header: 'Linked', render: (r) => { const n = Object.keys(r.links || {}).length; return <span className="text-xs text-ink-500" title={Object.keys(r.links || {}).join(', ')}>{n} record{n === 1 ? '' : 's'}</span> } },
+    { key: 'by', width: 160, header: 'Logged by', render: (r) => getUserById(r.by)?.name || (r.by ? r.by : 'System') },
+    { key: 'assignedTo', width: 150, header: 'Assigned', render: (r) => getUserById(r.assignedTo)?.name.split(' ')[0] || '—' },
+    { key: 'date', width: 170, header: 'Date', sortable: true, render: (r) => formatDateTime(r.date) },
+    { key: 'status', width: 130, header: 'Status', render: (r) => <Badge tone={STATUS_TONE[effectiveStatus(r)] || 'neutral'}>{effectiveStatus(r)}</Badge> },
     {
-      key: 'actions', header: '', headerClassName: 'w-20',
+      key: 'actions', width: 88, header: '', headerClassName: 'w-20',
       render: (r) => (
         <div className="flex justify-end gap-0.5" onClick={(e) => e.stopPropagation()}>
           {r.source === 'manual' && r.status === 'Scheduled' && <IconButton icon={CheckCircle2} size="sm" aria-label="Mark complete" className="hover:text-emerald-600" onClick={() => quickComplete(r)} />}
@@ -116,20 +117,24 @@ export default function Activities() {
     },
   ]
 
-  const exportCsv = () => {
-    downloadCsv('activities.csv', crud.allFiltered.map((a) => ({ ...a, loggedBy: getUserById(a.by)?.name || '', assigned: getUserById(a.assignedTo)?.name || '', canonical: canonicalType(a), eff: effectiveStatus(a), linked: Object.keys(a.links || {}).join(' ') })), [
-      { label: 'Type', value: 'canonical' }, { label: 'Subject', value: 'subject' }, { label: 'Related type', value: 'relatedType' }, { label: 'Related to', value: 'relatedName' },
-      { label: 'Linked records', value: 'linked' }, { label: 'Logged by', value: 'loggedBy' }, { label: 'Assigned to', value: 'assigned' }, { label: 'Date', value: 'date' }, { label: 'Status', value: 'eff' }, { label: 'Notes', value: 'notes' },
-    ])
-    toast(`Exported ${crud.allFiltered.length} activities.`, { type: 'success' })
-  }
+  // Export: every activity that matches the search and filters on screen (all pages), newest first unless a sort is chosen
+  const exportColumns = [
+    { label: 'Type', value: (a) => canonicalType(a) }, { label: 'Subject', value: 'subject' }, { label: 'Related type', value: 'relatedType' }, { label: 'Related to', value: 'relatedName' },
+    { label: 'Linked records', value: (a) => Object.keys(a.links || {}).join(' ') }, { label: 'Logged by', value: (a) => getUserById(a.by)?.name || (a.by ? a.by : 'System') },
+    { label: 'Assigned to', value: (a) => getUserById(a.assignedTo)?.name || '' }, { label: 'Date', value: (a) => formatDateTime(a.date) }, { label: 'Status', value: (a) => effectiveStatus(a) }, { label: 'Notes', value: 'notes' },
+  ]
+  const exportFilters = describeFilters([
+    ['Search', crud.search && `"${crud.search}"`], ['Type', f.type], ['Status', f.status], ['Related to', f.relatedType], ['User', f.user !== 'all' && (getUserById(f.user)?.name || f.user)],
+    ['Company', f.company !== 'all' && nameOf('companies', f.company)], ['Customer', f.customer !== 'all' && nameOf('customers', f.customer)], ['Deal', f.deal !== 'all' && nameOf('deals', f.deal)],
+    ['Source', f.source], ['From', f.from], ['To', f.to], ['Only mine', f.mine && 'Yes'],
+  ])
 
   return (
     <div>
       <PageHeader
         title="Activities"
         description="Every call, email, meeting, task and system event — each tied to the real records it concerns."
-        actions={<><Button variant="secondary" icon={Download} onClick={exportCsv}>Export</Button><Button icon={Plus} onClick={() => setLogOpen(true)}>Log Activity</Button></>}
+        actions={<><ExportMenu title="Activities" noun="activity" columns={exportColumns} rows={() => (crud.sort?.field ? crud.allFiltered : sorted)} filters={exportFilters} /><Button icon={Plus} onClick={() => setLogOpen(true)}>Log Activity</Button></>}
       />
 
       <div className="mb-5 grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-6">

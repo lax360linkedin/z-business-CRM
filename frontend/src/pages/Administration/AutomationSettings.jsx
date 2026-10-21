@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useRefreshHandler } from '../../api/refresh'
 import { CheckCircle2, Pencil, Play, Plus, RefreshCw, RotateCcw, Save, Trash2, Wifi, XCircle } from 'lucide-react'
 import { Modal } from '../../components/common/Modal'
 import { Button } from '../../components/common/Button'
@@ -214,8 +215,7 @@ function RunHistory({ workflows, refreshKey }) {
   const pages = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1
   const sel = 'h-9 rounded-lg border border-ink-200 bg-white px-2.5 text-xs text-ink-700 focus:border-brand-500 focus:outline-none dark:border-ink-700 dark:bg-ink-900 dark:text-ink-200'
   return (
-    <Section title="Run history" description="Every message the CRM handed to n8n and what became of it. Failed sends that can be retried are retried automatically (3 attempts); the rest wait for you."
-      actions={<Button size="sm" variant="secondary" icon={RefreshCw} onClick={load}>Refresh</Button>}>
+    <Section title="Run history" description="Every message the CRM handed to n8n and what became of it. Failed sends that can be retried are retried automatically (3 attempts); the rest wait for you.">
       <div className="mb-3 flex flex-wrap gap-2">
         <select aria-label="Filter by status" className={sel} value={status} onChange={(e) => { setStatus(e.target.value); setPage(1) }}><option value="">All statuses</option>{['Success', 'Failed', 'Running', 'Queued'].map((s) => <option key={s}>{s}</option>)}</select>
         <select aria-label="Filter by workflow" className={sel} value={workflowId} onChange={(e) => { setWorkflowId(e.target.value); setPage(1) }}><option value="">All workflows</option>{workflows.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}</select>
@@ -225,7 +225,7 @@ function RunHistory({ workflows, refreshKey }) {
         <p className="rounded-xl border border-dashed border-ink-200 px-4 py-8 text-center text-sm text-ink-500 dark:border-ink-700 dark:text-ink-400">No runs{status || workflowId ? ' match these filters' : ' yet'}.</p>
       ) : (
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-left text-sm">
+          <table className="crm-table w-full min-w-[720px] text-left text-sm">
             <thead><tr className="border-b border-ink-100 text-xs uppercase tracking-wide text-ink-400 dark:border-ink-800"><th className="py-2 pr-3 font-medium">Status</th><th className="py-2 pr-3 font-medium">Workflow</th><th className="py-2 pr-3 font-medium">Triggered by</th><th className="py-2 pr-3 font-medium">Result</th><th className="py-2 font-medium">When</th></tr></thead>
             <tbody className="divide-y divide-ink-100 dark:divide-ink-800">
               {data.data.map((r) => (
@@ -258,6 +258,7 @@ export function AutomationPanel() {
   const [error, setError] = useState('')
   const [tick, setTick] = useState(0)
   const load = useCallback(() => api.get('/automation/overview', { noCache: true }).then((r) => { setOv(r.data); setError(''); setTick((t) => t + 1) }).catch((e) => setError(errorMessage(e))), [])
+  useRefreshHandler(load) // the page's Refresh button: reloads the connection, the workflows and (through the tick) the run history
   useEffect(() => { if (isAdmin) load() }, [isAdmin, load])
   return (
     <div className="space-y-5">

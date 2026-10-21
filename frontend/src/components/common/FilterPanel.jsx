@@ -11,7 +11,7 @@ export function FilterPanel({ filters, values, onChange, onClear }) {
     <div className="flex flex-wrap items-center gap-2">
       {filters.map((f) => (
         <div key={f.key} className="w-40">
-          <Select value={values[f.key] || 'all'} onChange={(e) => onChange(f.key, e.target.value)} className="h-9 text-xs">
+          <Select aria-label={`Filter by ${f.label}`} value={values[f.key] || 'all'} onChange={(e) => onChange(f.key, e.target.value)} className="h-9 text-xs">
             <option value="all">All {f.label}</option>
             {f.options.map((opt) => (
               <option key={opt.value} value={opt.value}>{opt.label}</option>

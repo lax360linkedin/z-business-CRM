@@ -14,6 +14,7 @@ import { EmptyState } from '../../components/common/EmptyState'
 import { Dropdown, DropdownItem } from '../../components/common/Dropdown'
 import { useToast } from '../../context/ToastContext'
 import { useAuth } from '../../context/AuthContext'
+import { useRefreshHandler } from '../../api/refresh'
 import { api, errorMessage } from '../../api/http'
 import { formatCurrency, timeAgo } from '../../utils/format'
 
@@ -112,7 +113,7 @@ function RecentRuns({ runs }) {
     <section className="mt-5 rounded-2xl border border-ink-100 bg-white p-5 shadow-card dark:border-ink-800 dark:bg-ink-900">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2"><Zap size={16} className="text-brand-500" /><h2 className="text-sm font-semibold text-ink-900 dark:text-ink-50">Workflow activity</h2></div>
-        <Link to="/settings/automation" className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-300">Manage automation</Link>
+        <Link to="/administration/automation" className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-300">Manage automation</Link>
       </div>
       {runs.length === 0 ? (
         <p className="text-sm text-ink-500 dark:text-ink-400">No workflow has run yet. Connect n8n and add a workflow in Settings → Automation, then insights and CRM events can trigger it.</p>
@@ -152,6 +153,7 @@ export default function AIInsights() {
       .finally(() => setRefreshing(false))
   }, [isAdmin])
 
+  useRefreshHandler(() => load())
   useEffect(() => { load(); const t = setInterval(() => { if (document.visibilityState === 'visible') load() }, 5 * 60 * 1000); return () => clearInterval(t) }, [load])
 
   const send = (insight, workflow) => {
@@ -203,7 +205,6 @@ export default function AIInsights() {
         description="Prioritised findings and trends from your live CRM data, limited to your branch and the records you can open."
         actions={<>
           <span className="inline-flex items-center gap-1.5 rounded-full bg-brand-50 px-3 py-1.5 text-xs font-medium text-brand-700 dark:bg-brand-900/30 dark:text-brand-300"><Sparkles size={13} /> Updated {new Date(data.generatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
-          <Button variant="secondary" size="sm" icon={RefreshCw} loading={refreshing} onClick={() => load(true)}>Refresh</Button>
         </>}
       />
       {error && <p role="alert" className="mb-4 rounded-xl bg-amber-50 px-4 py-2.5 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">Could not refresh: {error} Showing the last result.</p>}

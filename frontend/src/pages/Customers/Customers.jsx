@@ -2,6 +2,8 @@ import { useOptions, asChoices } from '../../hooks/useOptions'
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Trash2 } from 'lucide-react'
+import { ExportMenu } from '../../components/common/ExportMenu'
+import { filterText } from '../../utils/exporter'
 import { PageHeader } from '../../components/common/PageHeader'
 import { SearchBar } from '../../components/common/SearchBar'
 import { FilterPanel, FilterToggleButton } from '../../components/common/FilterPanel'
@@ -45,9 +47,17 @@ export default function Customers() {
     { key: 'status', label: 'Statuses', options: CUSTOMER_STATUSES.map((s) => ({ value: s, label: s })) },
   ]
 
+  // Export: every customer that matches the search and filters on screen
+  const exportColumns = [
+    { label: 'Customer ID', value: 'id' }, { label: 'Customer', value: 'name' }, { label: 'Industry', value: 'industry' }, { label: 'Contact person', value: 'contactPerson' }, { label: 'Email', value: 'email' },
+    { label: 'Phone', value: 'phone' }, { label: 'Account manager', value: (c) => getUserById(c.accountManager)?.name || '' }, { label: 'Customer since', value: 'since' }, { label: 'Tier', value: 'tier' },
+    { label: 'Status', value: 'status' }, { label: 'Lifetime value', value: (c) => Number(c.lifetimeValue) || 0, align: 'right' }, { label: 'Branch', value: 'branch' },
+  ]
+  const exportFilters = filterText({ search: crud.search, values: crud.filters, defs: filterDefs })
+
   const columns = [
     {
-      key: 'name', header: 'Customer', sortable: true,
+      key: 'name', width: 240, header: 'Customer', sortable: true,
       render: (row) => (
         <div className="flex items-center gap-2.5">
           <Avatar name={row.name} size="sm" />
@@ -58,13 +68,13 @@ export default function Customers() {
         </div>
       ),
     },
-    { key: 'industry', header: 'Industry', sortable: true },
-    { key: 'contactPerson', header: 'Contact Person' },
-    { key: 'accountManager', header: 'Account Manager', render: (row) => getUserById(row.accountManager)?.name.split(' ')[0] || '—' },
-    { key: 'since', header: 'Customer Since', sortable: true, render: (row) => formatDate(row.since) },
-    { key: 'tier', header: 'Tier', render: (row) => <Badge tone={TIER_TONES[row.tier] || 'neutral'}>{row.tier}</Badge> },
-    { key: 'status', header: 'Status', render: (row) => <StatusBadge status={row.status} /> },
-    { key: 'lifetimeValue', header: 'Lifetime Value', sortable: true, render: (row) => formatCurrency(row.lifetimeValue, { compact: true }) },
+    { key: 'industry', width: 160, header: 'Industry', sortable: true },
+    { key: 'contactPerson', width: 180, header: 'Contact Person' },
+    { key: 'accountManager', width: 170, header: 'Account Manager', render: (row) => getUserById(row.accountManager)?.name.split(' ')[0] || '—' },
+    { key: 'since', width: 150, header: 'Customer Since', sortable: true, render: (row) => formatDate(row.since) },
+    { key: 'tier', width: 110, header: 'Tier', render: (row) => <Badge tone={TIER_TONES[row.tier] || 'neutral'}>{row.tier}</Badge> },
+    { key: 'status', width: 130, header: 'Status', render: (row) => <StatusBadge status={row.status} /> },
+    { key: 'lifetimeValue', width: 150, header: 'Lifetime Value', sortable: true, render: (row) => formatCurrency(row.lifetimeValue, { compact: true }) },
     {
       key: 'actions', header: '', headerClassName: 'w-10',
       render: (row) => (
@@ -109,7 +119,7 @@ export default function Customers() {
       <PageHeader
         title="Customers"
         description="Manage your active customer base and the full relationship history."
-        actions={<Button icon={Plus} onClick={() => setCreateOpen(true)}>Add Customer</Button>}
+        actions={<><ExportMenu title="Customers" noun="customer" columns={exportColumns} rows={() => crud.allFiltered} filters={exportFilters} /><Button icon={Plus} onClick={() => setCreateOpen(true)}>Add Customer</Button></>}
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-2.5">

@@ -1,9 +1,11 @@
 import { useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
-import { Plus, Download, Pencil, Trash2, Target, AlertTriangle, Power, Layers, CheckCircle2, PauseCircle, Plug, XCircle, FilterX } from 'lucide-react'
+import { Plus, Pencil, Trash2, Target, AlertTriangle, Power, Layers, CheckCircle2, PauseCircle, Plug, XCircle } from 'lucide-react'
+import { ExportMenu } from '../../components/common/ExportMenu'
+import { describeFilters, documentFromCsv } from '../../utils/exporter'
 import { PageHeader } from '../../components/common/PageHeader'
-import { SearchBar } from '../../components/common/SearchBar'
+import { FilterToolbar } from '../../components/common/FilterToolbar'
 import { Badge } from '../../components/common/Badge'
 import { Button } from '../../components/common/Button'
 import { Modal } from '../../components/common/Modal'
@@ -15,7 +17,7 @@ import { FormField, Input, Select, Textarea } from '../../components/common/Form
 import { IntegrationBadge } from './IntegrationBadge'
 import { useToast } from '../../context/ToastContext'
 import { useBranch } from '../../context/BranchContext'
-import { downloadBlob } from '../Invoices/invoiceClient'
+
 import { useSources, useMarketingConfig, saveSource, deleteSource, addSourceCategory, exportMarketing, mkErr, mkFields } from '../Marketing/marketingClient'
 
 const ALL = 'all'
@@ -87,9 +89,21 @@ export default function LeadSources() {
   const [edit, setEdit] = useState(null)
   const [confirm, setConfirm] = useState(null)
   const [busy, setBusy] = useState(false)
-  const set = (k) => (e) => setFilters({ ...filters, [k]: e.target.value })
   const filtered = !!search.trim() || Object.entries(filters).some(([k, v]) => (k === 'from' || k === 'to' ? v : v !== ALL))
   const reset = () => { setSearch(''); setFilters({ category: ALL, scope: ALL, branch: ALL, status: ALL, integration: ALL, from: '', to: '' }) }
+  // the dropdowns (Filters) and the date range (More Filters) are counted and cleared separately, as on the other list pages
+  const selects = { category: filters.category, scope: filters.scope, status: filters.status, integration: filters.integration, ...(isGlobal && { branch: filters.branch }) }
+  const setSelect = (k, v) => setFilters((f) => ({ ...f, [k]: v || ALL }))
+  const setRange = (k) => (e) => setFilters((f) => ({ ...f, [k]: e.target.value }))
+  const rangeCount = [filters.from, filters.to].filter(Boolean).length
+  const opts = (list) => list.map((v) => ({ value: v, label: v }))
+  const filterDefs = [
+    { key: 'category', label: 'Categories', options: opts(categories) },
+    { key: 'scope', label: 'Scopes', options: opts(['Common', 'Branch-specific']) },
+    ...(isGlobal ? [{ key: 'branch', label: 'Branches', options: opts(activeNames) }] : []),
+    { key: 'status', label: 'Statuses', options: opts(['Active', 'Inactive']) },
+    { key: 'integration', label: 'Integrations', options: opts(['Not Connected', 'Connected', 'Error', 'Inactive']) },
+  ]
   const list = useMemo(() => (sources || []).filter((s) => (
     (!search.trim() || `${s.name} ${s.category} ${s.branch || ''}`.toLowerCase().includes(search.trim().toLowerCase()))
     && (filters.category === ALL || s.category === filters.category)
@@ -104,7 +118,12 @@ export default function LeadSources() {
   ]
   const toggle = (s) => { setBusy(true); saveSource(s.id, { active: !s.active }).then(() => { toast(s.active ? `${s.name} deactivated. Existing records keep it.` : `${s.name} activated.`, { type: 'success' }); setConfirm(null); reload() }).catch((e) => toast(mkErr(e), { type: 'error' })).finally(() => setBusy(false)) }
   const remove = (s) => { setBusy(true); deleteSource(s.id).then(() => { toast('Source deleted.', { type: 'success' }); setConfirm(null); reload() }).catch((e) => { toast(mkErr(e), { type: 'error' }); setConfirm(null) }).finally(() => setBusy(false)) }
-  const exportCsv = () => exportMarketing('sources', server).then((csv) => { downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), 'lead-sources.csv'); toast('Source register exported.', { type: 'success' }) }).catch((e) => toast(mkErr(e), { type: 'error' }))
+  // Export: the server's source register for the selected branch and dates (Export right checked and audited there); only the sources matching the search and filters on screen are kept
+  const exportFilters = describeFilters([
+    ['Search', search.trim() && `"${search.trim()}"`], ['Category', filters.category], ['Scope', filters.scope], ['Branch', filters.branch], ['Status', filters.status], ['Integration', filters.integration],
+    ['Enquiries from', filters.from], ['Enquiries to', filters.to],
+  ])
+  const exportDoc = async (_format, ctx) => documentFromCsv({ title: 'Lead Sources', csv: await exportMarketing('sources', server), keep: new Set(list.map((s) => s.name)), filters: exportFilters, ...ctx })
   if (error) return <EmptyState icon={AlertTriangle} title="Couldn’t load lead sources" description={error} action={<Button variant="secondary" onClick={reload}>Try again</Button>} />
   const actions = (s) => s.perms.edit && (
     <div className="flex justify-end gap-0.5">
@@ -115,26 +134,24 @@ export default function LeadSources() {
   )
   return (
     <div>
-      <PageHeader title="Lead Sources" description="Where enquiries come from. Every enquiry, lead, deal and customer points to one of these sources; a source never decides which branch a record belongs to." actions={<>{perms.export && <Button variant="secondary" icon={Download} onClick={exportCsv}>Export</Button>}{perms.manageSources && <Button icon={Plus} onClick={() => setEdit({})}>Add source</Button>}</>} />
+      <PageHeader title="Lead Sources" description="Where enquiries come from. Every enquiry, lead, deal and customer points to one of these sources; a source never decides which branch a record belongs to." actions={<><ExportMenu title="Lead Sources" noun="source" permission={perms.export} getDocument={exportDoc} />{perms.manageSources && <Button icon={Plus} onClick={() => setEdit({})}>Add source</Button>}</>} />
       {sources && <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-5">{cards.map(([label, value, icon, tone]) => <StatCard key={label} label={label} value={value} icon={icon} tone={tone} />)}</div>}
-      <div className="mb-4 flex flex-wrap items-end gap-3">
-        <SearchBar value={search} onChange={setSearch} placeholder="Search sources…" className="w-full sm:w-64" />
-        <label className="text-xs text-ink-500">Category<Select aria-label="Filter by category" className="mt-1 min-w-40" value={filters.category} onChange={set('category')}><option value={ALL}>All categories</option>{categories.map((c) => <option key={c}>{c}</option>)}</Select></label>
-        <label className="text-xs text-ink-500">Scope<Select aria-label="Filter by scope" className="mt-1 min-w-36" value={filters.scope} onChange={set('scope')}><option value={ALL}>All scopes</option><option>Common</option><option>Branch-specific</option></Select></label>
-        {isGlobal && <label className="text-xs text-ink-500">Branch<Select aria-label="Filter by branch" className="mt-1 min-w-36" value={filters.branch} onChange={set('branch')}><option value={ALL}>All branches</option>{activeNames.map((b) => <option key={b}>{b}</option>)}</Select></label>}
-        <label className="text-xs text-ink-500">Status<Select aria-label="Filter by status" className="mt-1 min-w-28" value={filters.status} onChange={set('status')}><option value={ALL}>All</option><option>Active</option><option>Inactive</option></Select></label>
-        <label className="text-xs text-ink-500">Integration<Select aria-label="Filter by integration status" className="mt-1 min-w-36" value={filters.integration} onChange={set('integration')}><option value={ALL}>All</option>{['Not Connected', 'Connected', 'Error', 'Inactive'].map((c) => <option key={c}>{c}</option>)}</Select></label>
-        <label className="text-xs text-ink-500">Enquiries from<Input type="date" aria-label="Enquiries from date" className="mt-1" value={filters.from} max={filters.to || undefined} onChange={set('from')} /></label>
-        <label className="text-xs text-ink-500">to<Input type="date" aria-label="Enquiries to date" className="mt-1" value={filters.to} min={filters.from || undefined} onChange={set('to')} /></label>
-        {filtered && <Button variant="ghost" icon={FilterX} onClick={reset}>Clear</Button>}
-      </div>
+      <FilterToolbar
+        search={search} onSearch={setSearch} searchPlaceholder="Search sources by name, category or branch…"
+        filters={filterDefs} values={selects} onChange={setSelect} onClear={() => setFilters((f) => ({ ...f, category: ALL, scope: ALL, branch: ALL, status: ALL, integration: ALL }))}
+        advancedCount={rangeCount} onClearAdvanced={() => setFilters((f) => ({ ...f, from: '', to: '' }))}
+        advanced={<>
+          <FormField label="Enquiries From"><Input type="date" aria-label="Enquiries from date" value={filters.from} max={filters.to || undefined} onChange={setRange('from')} /></FormField>
+          <FormField label="Enquiries To"><Input type="date" aria-label="Enquiries to date" value={filters.to} min={filters.from || undefined} onChange={setRange('to')} /></FormField>
+        </>}
+      />
       {!sources ? <CardSkeleton className="h-64" /> : !list.length ? (
         <EmptyState icon={Target} title={filtered ? 'No sources match these filters' : 'No lead sources yet'} description={filtered ? 'Change or clear the filters to see more.' : perms.manageSources ? 'Add the first source to start tracking where enquiries come from.' : 'Lead sources will appear here once they are set up.'} action={filtered ? <Button variant="secondary" onClick={reset}>Clear filters</Button> : undefined} />
       ) : (
         <>
           <div className="hidden overflow-x-auto rounded-2xl border border-ink-100 bg-white shadow-card md:block dark:border-ink-800 dark:bg-ink-900">
-            <table className="w-full min-w-[980px] text-sm">
-              <thead><tr className="border-b border-ink-100 bg-ink-50/60 text-xs font-semibold uppercase text-ink-500 dark:border-ink-800 dark:bg-ink-800/40"><th className={clsx(th, 'px-4')}>Source</th><th className={th}>Category</th><th className={th}>Scope</th><th className={th}>Branch</th><th className={th}>Integration</th><th className={th}>Status</th><th className="px-3 text-right">Enquiries</th><th className="px-3 text-right">Converted</th><th className="px-3 text-right">Conversion</th><th className="w-28 px-3"><span className="sr-only">Actions</span></th></tr></thead>
+            <table className="crm-table crm-table-fixed w-full min-w-[1360px] text-sm">
+              <thead><tr className="border-b border-ink-100 bg-ink-50/60 text-xs font-semibold uppercase text-ink-500 dark:border-ink-800 dark:bg-ink-800/40"><th className={clsx(th, 'w-60 px-4')}>Source</th><th className={clsx(th, 'w-36')}>Category</th><th className={clsx(th, 'w-28')}>Scope</th><th className={clsx(th, 'w-36')}>Branch</th><th className={clsx(th, 'w-36')}>Integration</th><th className={clsx(th, 'w-28')}>Status</th><th className="w-28 px-3 text-right">Enquiries</th><th className="w-28 px-3 text-right">Converted</th><th className="w-32 px-3 text-right">Conversion</th><th className="w-28 px-3"><span className="sr-only">Actions</span></th></tr></thead>
               <tbody>{list.map((s) => (
                 <tr key={s.id} onClick={(e) => { if (!e.target.closest('button')) navigate(`/lead-sources/${s.id}`) }} className={clsx('cursor-pointer border-b border-ink-50 last:border-0 hover:bg-ink-50/60 dark:border-ink-800/60 dark:hover:bg-ink-800/30', !s.active && 'opacity-70')}>
                   <td className="px-4 py-3"><button type="button" onClick={() => navigate(`/lead-sources/${s.id}`)} className="text-left font-medium text-brand-700 hover:underline dark:text-brand-300">{s.name}</button></td>

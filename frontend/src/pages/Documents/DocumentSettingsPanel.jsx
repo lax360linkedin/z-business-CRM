@@ -76,7 +76,7 @@ export function DocumentSettingsPanel() {
       <div className={box}>
         <h2 className="text-base font-bold text-ink-900 dark:text-ink-50">Who can do what</h2>
         <p className="mt-1 text-sm text-ink-500">Document capabilities by role. These combine with the Documents row in Roles &amp; Permissions, each document’s visibility, and the person’s access to the CRM record it belongs to.</p>
-        <div className="mt-4 overflow-x-auto"><table className="w-full text-xs"><thead><tr className="border-b border-ink-100 text-left dark:border-ink-800"><th className="pb-2 pr-3 font-semibold text-ink-500">Capability</th>{ROLES.map((r) => <th key={r} className="px-1.5 pb-2 text-center font-semibold text-ink-500"><span className="block w-14 truncate" title={r}>{r}</span></th>)}</tr></thead>
+        <div className="mt-4 overflow-x-auto"><table className="crm-table w-full text-xs"><thead><tr className="border-b border-ink-100 text-left dark:border-ink-800"><th className="pb-2 pr-3 font-semibold text-ink-500">Capability</th>{ROLES.map((r) => <th key={r} className="px-1.5 pb-2 text-center font-semibold text-ink-500"><span className="block w-14 truncate" title={r}>{r}</span></th>)}</tr></thead>
           <tbody>{DOC_PERMISSIONS.map(([k, label]) => <tr key={k} className="border-b border-ink-50 dark:border-ink-800/60"><td className="py-1.5 pr-3 text-ink-700 dark:text-ink-200">{label}</td>{ROLES.map((r) => <td key={r} className="px-1.5 text-center">{DOC_ROLE_CAPS[r].includes(k) ? <Check size={14} className="mx-auto text-emerald-500" aria-label="Allowed" /> : <Minus size={14} className="mx-auto text-ink-300" aria-label="Not allowed" />}</td>)}</tr>)}</tbody></table></div>
       </div>
     </div>

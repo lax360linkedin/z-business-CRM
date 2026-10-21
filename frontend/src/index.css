@@ -167,17 +167,26 @@
   * {
     @apply border-ink-200 dark:border-ink-800;
   }
+
+  /* A grid with no column rule below its first breakpoint (`grid gap-5 lg:grid-cols-3`) used to size its one column to its widest content, so a
+     wide table or chart card stretched the whole page on a phone. One column that can shrink fixes it; any grid-cols-* class still wins. */
+  .grid:where(:not(.grid-flow-col)) {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @layer utilities {
-  .scrollbar-thin::-webkit-scrollbar {
+  .scrollbar-thin::-webkit-scrollbar,
+  .overflow-x-auto::-webkit-scrollbar {
     width: 6px;
     height: 6px;
   }
-  .scrollbar-thin::-webkit-scrollbar-track {
+  .scrollbar-thin::-webkit-scrollbar-track,
+  .overflow-x-auto::-webkit-scrollbar-track {
     background: transparent;
   }
-  .scrollbar-thin::-webkit-scrollbar-thumb {
+  .scrollbar-thin::-webkit-scrollbar-thumb,
+  .overflow-x-auto::-webkit-scrollbar-thumb {
     @apply bg-ink-300 dark:bg-ink-700 rounded-full;
   }
   .bg-shimmer {
@@ -197,4 +206,37 @@
       rgba(255, 255, 255, 0) 100%
     );
   }
+}
+
+/* ---- Data tables: one fixed, predictable layout everywhere -------------------------------------------------------
+   DataTable (components/common/DataTable.jsx) lays itself out; `crm-table` brings the hand-built tables in line:
+   same header and cell padding, one-line cells that end in an ellipsis instead of stretching their column, and the full
+   value shown on hover (utils/truncationTitles.js). `crm-table-fixed` additionally fixes the column widths (set them on the
+   header cells, e.g. `w-40`), so a long name or email can never move a column. */
+@layer components {
+  .crm-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; line-height: 1.25rem; }
+  .crm-table-fixed { table-layout: fixed; }
+  .crm-table th {
+    position: relative; height: 2.75rem; padding: 0.5rem 1rem; text-align: left; vertical-align: middle; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.025em; text-transform: uppercase;
+  }
+  .crm-table td {
+    position: relative; height: 3.5rem; padding: 0.5rem 1rem; vertical-align: middle; white-space: nowrap;
+    overflow: hidden; text-overflow: ellipsis; max-width: 22rem;
+  }
+  .crm-table-fixed td { max-width: none; }
+  /* free text that must be read in full (a reason, a before/after value in a dialog): the cell wraps instead of being cut off */
+  .crm-table-wrap td { height: auto; max-width: none; overflow: visible; white-space: normal; text-overflow: clip; padding-top: 0.625rem; padding-bottom: 0.625rem; }
+  /* cells that hold a menu, a field or a button keep their overflow, so a dropdown or focus ring is never cut off */
+  .crm-table td:has(input, select, textarea, [aria-haspopup], [role='menu'], .relative.inline-block) { overflow: visible; }
+  .crm-table td > button:only-child:not(:has(> svg:only-child)), .crm-table td > a:only-child:not(:has(> svg:only-child)) { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .crm-table th.text-center, .crm-table td.text-center { text-align: center; }
+  .crm-table th.text-right, .crm-table td.text-right { text-align: right; }
+  .crm-table td p { overflow: hidden; text-overflow: ellipsis; }
+  .crm-table td div { min-width: 0; }
+
+  /* DataTable cell content: the wrapper clips, text inside ends in an ellipsis */
+  .crm-cell { position: relative; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .crm-cell p, .crm-cell .truncate-cell { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .crm-cell div, .crm-cell p { min-width: 0; }
 }

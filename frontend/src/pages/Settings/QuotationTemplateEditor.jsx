@@ -278,7 +278,7 @@ export default function QuotationTemplateEditor() {
       ) : view === 'page' ? (
         <PageDesigner value={decos} onChange={setDecos} body={{ kind: 'image', previewDataUrl: background.previewDataUrl, aspect: pageAspect, fields }} />
       ) : (
-        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[1fr_240px]">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_240px]">
           <div className="overflow-auto rounded-2xl border border-ink-100 bg-ink-50 p-4 dark:border-ink-800 dark:bg-ink-950">
             <div
               ref={containerRef}

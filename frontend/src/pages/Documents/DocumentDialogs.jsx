@@ -65,7 +65,7 @@ export function PreviewDialog({ doc, onClose, initialVersion }) {
         {!state.loading && !state.error && fam === 'pdf' && state.url && <iframe title={`Preview of ${doc.name}`} src={state.url} className="h-[65vh] w-full rounded-lg border border-ink-100 dark:border-ink-800" />}
         {!state.loading && !state.error && fam === 'image' && state.url && <div className="flex max-h-[65vh] justify-center overflow-auto rounded-lg bg-ink-50 p-3 dark:bg-ink-950"><img src={state.url} alt={doc.name} className="max-h-[60vh] object-contain" /></div>}
         {!state.loading && !state.error && rows.length > 0 && (
-          <div className="max-h-[65vh] overflow-auto rounded-lg border border-ink-100 dark:border-ink-800"><table className="w-full text-xs"><tbody>{rows.map((r, i) => <tr key={i} className={clsx('border-b border-ink-50 dark:border-ink-800/60', i === 0 && 'bg-ink-50 font-semibold dark:bg-ink-800/50')}>{r.map((c, j) => <td key={j} className="whitespace-nowrap px-3 py-1.5">{c}</td>)}</tr>)}</tbody></table></div>
+          <div className="max-h-[65vh] overflow-auto rounded-lg border border-ink-100 dark:border-ink-800"><table className="crm-table w-full text-xs"><tbody>{rows.map((r, i) => <tr key={i} className={clsx('border-b border-ink-50 dark:border-ink-800/60', i === 0 && 'bg-ink-50 font-semibold dark:bg-ink-800/50')}>{r.map((c, j) => <td key={j} className="whitespace-nowrap px-3 py-1.5">{c}</td>)}</tr>)}</tbody></table></div>
         )}
         {!state.loading && !state.error && !state.url && !rows.length && (
           <div className="flex h-[50vh] flex-col items-center justify-center gap-2 text-center"><FileWarning className="text-ink-400" size={28} /><p className="text-sm font-medium text-ink-700 dark:text-ink-200">No in-browser preview for {v?.fileName ? `.${extOf(v.fileName)}` : 'this'} files</p><p className="max-w-sm text-xs text-ink-400">Word, Excel and PowerPoint files open in their own applications.{doc.access.download ? ' Use Download to open it.' : ''}</p></div>
@@ -189,7 +189,7 @@ export function ShareDialog({ doc, onClose, onDone }) {
       footer={<Button variant="ghost" onClick={onClose}>Close</Button>}>
       <div className="space-y-5">
         {error && <p role="alert" className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-900/20 dark:text-rose-300">{error}</p>}
-        <div className="grid gap-3 sm:grid-cols-[8rem_1fr_9rem]">
+        <div className="grid gap-3 sm:grid-cols-[8rem_minmax(0,1fr)_9rem]">
           <FormField label="Share with"><Select aria-label="Share with" value={type} onChange={(e) => { setType(e.target.value); setTarget('') }}><option value="user">A person</option><option value="team">A team</option></Select></FormField>
           <FormField label={type === 'user' ? 'Person' : 'Team'}>
             <Select aria-label="Share target" value={target} onChange={(e) => setTarget(e.target.value)}>

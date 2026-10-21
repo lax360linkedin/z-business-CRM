@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
-import { Download, Wallet, CalendarCheck, CalendarDays, Clock3, CheckCircle2, XCircle, Undo2, AlertTriangle, X, CreditCard, HandCoins, Hash, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react'
+import { Wallet, CalendarCheck, CalendarDays, Clock3, CheckCircle2, XCircle, Undo2, AlertTriangle, X, CreditCard, HandCoins, Hash, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react'
+import { ExportMenu } from '../../components/common/ExportMenu'
+import { describeFilters, documentFromCsv } from '../../utils/exporter'
 import { PageHeader } from '../../components/common/PageHeader'
 import { SearchBar } from '../../components/common/SearchBar'
 import { FilterToggleButton } from '../../components/common/FilterPanel'
@@ -14,7 +16,7 @@ import { useToast } from '../../context/ToastContext'
 import { USERS } from '../../data/users'
 import { PAYMENT_STATUS_OPTIONS, paymentMetrics, todayKey } from '../../utils/invoiceRules'
 import { formatCurrency, formatDate } from '../../utils/format'
-import { useInvoices, downloadBlob } from '../Invoices/invoiceClient'
+import { useInvoices } from '../Invoices/invoiceClient'
 import { exportPaymentsCsv, usePaymentConfig, payErr } from './paymentClient'
 
 const EMPTY = { status: 'all', method: 'all', customer: 'all', company: 'all', owner: 'all', deal: 'all', order: 'all', project: 'all', from: '', to: '', min: '', max: '' }
@@ -22,7 +24,7 @@ const sel = 'h-9 w-full rounded-lg border border-ink-200 bg-white px-2.5 text-xs
 const PAGE_SIZE = 12
 const TONE = { emerald: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30', brand: 'bg-brand-50 text-brand-600 dark:bg-brand-900/30', amber: 'bg-amber-50 text-amber-600 dark:bg-amber-900/30', rose: 'bg-rose-50 text-rose-600 dark:bg-rose-900/30', sky: 'bg-sky-50 text-sky-600 dark:bg-sky-900/30', violet: 'bg-violet-50 text-violet-600 dark:bg-violet-900/30' }
 const link = 'font-medium text-brand-600 hover:underline dark:text-brand-400'
-const COLS = 'xl:grid-cols-[1.1fr_1fr_1.4fr_1fr_5.5rem_6rem_6.5rem_6.5rem]'
+const COLS = 'xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.4fr)_minmax(0,1fr)_5.5rem_6rem_6.5rem_6.5rem]'
 const uniq = (rows, id, label) => [...new Map(rows.filter((r) => r[id]).map((r) => [r[id], r[label] || r[id]])).entries()].sort((a, b) => String(a[1]).localeCompare(String(b[1])))
 
 export default function Payments() {
@@ -72,7 +74,12 @@ export default function Payments() {
   const rows = filtered.slice((cur - 1) * PAGE_SIZE, cur * PAGE_SIZE)
   const active = Object.entries(f).filter(([, v]) => v !== '' && v !== 'all').length
   const toggle = (key) => setSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: key === 'amount' || key === 'date' ? 'desc' : 'asc' }))
-  const exportCsv = () => exportPaymentsCsv().then((csv) => { downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), 'payments.csv'); toast(`Exported ${payments.length} payments.`, { type: 'success' }) }).catch((e) => toast(payErr(e), { type: 'error' }))
+  // Export: the server's payment register (Export right checked and audited there); only the payments matching the search and filters on screen are kept
+  const exportFilters = describeFilters([
+    ['Search', search.trim() && `"${search.trim()}"`], ['Status', f.status], ['Method', f.method], ['Customer', f.customer], ['Company', f.company], ['Deal', f.deal], ['Sales order', f.order], ['Project', f.project],
+    ['Owner', f.owner !== 'all' && (USERS.find((u) => u.id === f.owner)?.name || f.owner)], ['From', f.from], ['To', f.to], ['Amount from', f.min], ['Amount to', f.max],
+  ])
+  const exportDoc = async (_format, ctx) => documentFromCsv({ title: 'Payments', csv: await exportPaymentsCsv(), keep: new Set(filtered.map((p) => p.number)), filters: exportFilters, ...ctx })
   const Sort = ({ k, children, right }) => <button type="button" onClick={() => toggle(k)} className={clsx('inline-flex items-center gap-1 uppercase hover:text-ink-800', right && 'justify-end')}>{children}{sort.key === k ? (sort.dir === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />) : <ArrowUpDown size={11} className="opacity-40" />}</button>
 
   if (error) return <EmptyState icon={AlertTriangle} title="Couldn’t load payments" description={error} action={<Button variant="secondary" onClick={reload}>Try again</Button>} />
@@ -80,7 +87,7 @@ export default function Payments() {
   const cards = [['Total received', money(m.received), Wallet, 'emerald'], ['Received today', money(m.today), CalendarCheck, 'brand'], ['Received this month', money(m.month), CalendarDays, 'sky'], ['Outstanding receivables', money(m.receivables), HandCoins, 'rose'], ['Pending', `${m.pendingCount}${hidden ? '' : ` · ${formatCurrency(m.pendingAmount)}`}`, Clock3, 'amber'], ['Completed', m.completedCount, CheckCircle2, 'emerald'], ['Failed', m.failedCount, XCircle, 'rose'], ['Refunded', money(m.refunded), Undo2, 'violet'], ['Transactions', m.transactions, Hash, 'brand']]
   return (
     <div>
-      <PageHeader title="Payments" description="Money received against your invoices — recorded from the invoice, frozen once completed, corrected only by cancellation or refund." actions={caps.includes('export') ? <Button variant="secondary" icon={Download} onClick={exportCsv}>Export</Button> : null} />
+      <PageHeader title="Payments" description="Money received against your invoices — recorded from the invoice, frozen once completed, corrected only by cancellation or refund." actions={<ExportMenu title="Payments" noun="payment" permission={caps.includes('export')} getDocument={exportDoc} />} />
       {!payments ? <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">{Array.from({ length: 5 }).map((_, i) => <CardSkeleton key={i} className="h-20" />)}</div> : (
         <>
           <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">

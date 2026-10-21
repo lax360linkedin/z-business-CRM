@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
+import { PageExport } from '../../components/common/PageExport'
 import { useNavigate } from 'react-router-dom'
 import {
   BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid,
@@ -54,6 +55,7 @@ function tooltipStyle() {
  * longer the centerpiece the way it is on the Deals page.
  */
 export default function Pipeline() {
+  const root = useRef(null)
   const { user } = useAuth()
   const navigate = useNavigate()
   const { accentHex } = useTheme()
@@ -187,10 +189,11 @@ export default function Pipeline() {
   }
 
   return (
-    <div>
+    <div ref={root}>
       <PageHeader
         title="Sales Pipeline"
         description="Forecast revenue, track conversion and monitor how deals progress through your sales process."
+        actions={<PageExport rootRef={root} title="Sales Pipeline" subtitle="Forecast revenue, track conversion and monitor how deals progress through your sales process." />}
       />
 
       <div className="mb-5 grid grid-cols-2 gap-4 lg:grid-cols-3 xl:grid-cols-6">
@@ -243,7 +246,7 @@ export default function Pipeline() {
 
       <div className="mb-5 grid gap-5 lg:grid-cols-3">
         <ChartCard title="Pipeline by Stage" subtitle="Deal count, value and weighted value at every stage" className="lg:col-span-2" bodyClassName="overflow-x-auto">
-          <table className="w-full min-w-[520px] text-sm">
+          <table className="crm-table w-full min-w-[520px] text-sm">
             <thead>
               <tr className="border-b border-ink-100 text-left text-xs font-semibold uppercase text-ink-500 dark:border-ink-800 dark:text-ink-400">
                 <th className="py-2 pr-3">Stage</th>

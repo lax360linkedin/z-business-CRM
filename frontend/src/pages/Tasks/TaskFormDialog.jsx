@@ -181,7 +181,7 @@ export function TaskFormDialog({ open, onClose, onSaved, task, related, parent, 
         </FormField>
 
         <FormField label="Related CRM record" error={errors.relatedId || errors.relatedType} hint={lockedRecord ? 'Attached from the record you came from.' : 'Optional. Choosing one links the task to its whole enquiry → payment chain.'}>
-          <div className="grid grid-cols-[9rem_1fr] gap-2">
+          <div className="grid grid-cols-[9rem_minmax(0,1fr)] gap-2">
             <Select aria-label="Record type" value={f.relatedType} disabled={lockedRecord} onChange={(e) => set({ relatedType: e.target.value, relatedId: '' })}>
               <option value="">None</option>
               {TASK_RELATED_TYPES.map((r) => <option key={r.type} value={r.type}>{r.type}</option>)}

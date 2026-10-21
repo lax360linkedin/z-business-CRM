@@ -49,7 +49,7 @@ function NextFollowUpDialog({ task, onClose, onCreated }) {
       <div className="space-y-4">
         {error && <p role="alert" className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-900/20 dark:text-rose-300">{error}</p>}
         <FormField label="Task"><Input value={title} onChange={(e) => setTitle(e.target.value)} placeholder={defTitle} /></FormField>
-        <div className="grid grid-cols-[1fr_7rem] gap-3">
+        <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-3">
           <FormField label="Due date"><Input type="date" value={due} onChange={(e) => setDue(e.target.value)} /></FormField>
           <FormField label="Time"><Input type="time" value={time} onChange={(e) => setTime(e.target.value)} /></FormField>
         </div>
@@ -97,7 +97,7 @@ function RescheduleDialog({ task, onClose, onDone }) {
     <Modal open onClose={() => { setSeed(null); onClose() }} size="sm" title="Reschedule" description={task.title} footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button><Button onClick={go} loading={busy}>Reschedule</Button></>}>
       <div className="space-y-3">
         {error && <p role="alert" className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-900/20 dark:text-rose-300">{error}</p>}
-        <div className="grid grid-cols-[1fr_7rem] gap-3">
+        <div className="grid grid-cols-[minmax(0,1fr)_7rem] gap-3">
           <FormField label="New due date"><Input type="date" value={due} onChange={(e) => setDue(e.target.value)} /></FormField>
           <FormField label="Time"><Input type="time" value={time} onChange={(e) => setTime(e.target.value)} /></FormField>
         </div>

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '../api/http'
+import { useRefreshHandler } from '../api/refresh'
 
 /**
  * Per-branch figures for the Super Admin's comparison views (Branch Management and the Dashboard): one server-side aggregate across every branch
@@ -7,11 +8,13 @@ import { api } from '../api/http'
  */
 export function useBranchSummary(names, refreshKey = 0) {
   const [state, setState] = useState({ rows: [], total: {} })
+  const load = (alive = () => true) => api.get('/branches/summary').then((res) => { if (alive()) setState(res.data) }).catch(() => { if (alive()) setState({ rows: [], total: {} }) })
   useEffect(() => {
-    let alive = true
-    api.get('/branches/summary').then((res) => { if (alive) setState(res.data) }).catch(() => { if (alive) setState({ rows: [], total: {} }) })
-    return () => { alive = false }
+    let live = true
+    load(() => live)
+    return () => { live = false }
   }, [names.join('|'), refreshKey]) // eslint-disable-line react-hooks/exhaustive-deps
+  useRefreshHandler(() => load())
   return state
 }
 

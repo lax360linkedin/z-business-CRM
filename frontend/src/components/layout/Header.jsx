@@ -2,8 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Search, Bell, Plus, Sun, Moon, HelpCircle, Menu, LogOut, User, Settings as SettingsIcon,
-  KeyRound, ChevronDown,
-} from 'lucide-react'
+  KeyRound, ChevronDown, ShieldCheck } from 'lucide-react'
 import { Dropdown, DropdownItem, DropdownLabel, DropdownDivider } from '../common/Dropdown'
 import { IconButton, Button } from '../common/Button'
 import { Avatar } from '../common/Avatar'
@@ -17,11 +16,13 @@ import { BranchSelector } from './BranchSelector'
 import { api } from '../../api/mockServer'
 import { timeAgo } from '../../utils/format'
 import { relatedHref } from '../../utils/activityRules'
+import { useHelp } from '../../help/HelpContext'
 
 export function Header() {
   const { theme, toggleTheme } = useTheme()
   const { user, logout, hasPermission } = useAuth()
   const { setMobileOpen } = useSidebar()
+  const { openHelp } = useHelp()
   const navigate = useNavigate()
   const [searchOpen, setSearchOpen] = useState(false)
   const [notifications, setNotifications] = useState([])
@@ -121,7 +122,7 @@ export function Header() {
         </Dropdown>
 
         <IconButton icon={theme === 'dark' ? Sun : Moon} onClick={toggleTheme} />
-        <IconButton icon={HelpCircle} className="hidden sm:inline-flex" />
+        <IconButton icon={HelpCircle} className="hidden sm:inline-flex" onClick={openHelp} aria-label="Help for this page" title="Help for this page (?)" />
 
         <div className="mx-1 hidden h-6 w-px bg-ink-200 sm:block dark:bg-ink-800" />
 
@@ -147,6 +148,8 @@ export function Header() {
           <DropdownDivider />
           <DropdownItem icon={User} onClick={() => navigate('/profile')}>My Profile</DropdownItem>
           <DropdownItem icon={SettingsIcon} onClick={() => navigate('/settings')}>Settings</DropdownItem>
+          {hasPermission('Settings', 'view') && <DropdownItem icon={ShieldCheck} onClick={() => navigate('/administration')}>Administration</DropdownItem>}
+          <DropdownItem icon={HelpCircle} className="sm:hidden" onClick={openHelp}>Help for this page</DropdownItem>
           <DropdownItem icon={KeyRound} onClick={() => navigate('/change-password')}>Change Password</DropdownItem>
           <DropdownDivider />
           <DropdownItem icon={LogOut} danger onClick={() => { logout(); navigate('/login') }}>Log Out</DropdownItem>

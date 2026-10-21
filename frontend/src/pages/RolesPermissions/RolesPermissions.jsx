@@ -1,6 +1,7 @@
 import { Fragment, useCallback, useEffect, useState } from 'react'
 import { RotateCcw, Save, ShieldCheck, Plus, Trash2 } from 'lucide-react'
 import { PageHeader } from '../../components/common/PageHeader'
+import { Breadcrumbs } from '../../components/common/Breadcrumbs'
 import { Tabs } from '../../components/common/Tabs'
 import { Button } from '../../components/common/Button'
 import { FormModal } from '../../components/common/FormModal'
@@ -70,6 +71,7 @@ export default function RolesPermissions() {
   return (
     <div>
       <PageHeader
+        breadcrumb={<Breadcrumbs items={[{ label: 'Administration', href: '/administration' }, { label: 'Roles & Permissions' }]} />}
         title="Roles & Permissions"
         description="Permission templates: the starting permissions for Admin, Employee and each job profile. Only the Super Admin can change them; individual accounts are tuned in User Management."
         actions={
@@ -100,16 +102,16 @@ export default function RolesPermissions() {
       </div>
 
       <div className="scrollbar-thin overflow-x-auto rounded-2xl border border-ink-100 bg-white shadow-card dark:border-ink-800 dark:bg-ink-900">
-        <table className="w-full min-w-[900px] border-collapse text-sm">
+        <table className="w-full min-w-[900px] table-fixed border-collapse text-sm">
           <thead>
-            <tr className="border-b border-ink-100 bg-ink-50/60 dark:border-ink-800 dark:bg-ink-800/40">
-              <th className="whitespace-nowrap px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-ink-500 dark:text-ink-400">Module</th>
+            <tr className="h-11 border-b border-ink-100 bg-ink-50/60 dark:border-ink-800 dark:bg-ink-800/40">
+              <th className="w-64 whitespace-nowrap px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-ink-500 dark:text-ink-400">Module</th>
               {ACTIONS.map((a) => (
-                <th key={a.key} className="w-24 whitespace-nowrap px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-ink-500 dark:text-ink-400">
+                <th key={a.key} className="w-24 whitespace-nowrap px-4 py-2 text-center text-xs font-semibold uppercase tracking-wide text-ink-500 dark:text-ink-400">
                   {a.label}
                 </th>
               ))}
-              <th className="w-32 whitespace-nowrap px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-ink-500 dark:text-ink-400">Data Scope</th>
+              <th className="w-32 whitespace-nowrap px-4 py-2 text-center text-xs font-semibold uppercase tracking-wide text-ink-500 dark:text-ink-400">Data Scope</th>
             </tr>
           </thead>
           <tbody>
@@ -123,8 +125,8 @@ export default function RolesPermissions() {
                   </tr>
                 )}
                 {section.items.map((item) => (
-                  <tr key={item.label} className="border-b border-ink-50 last:border-0 dark:border-ink-800/60">
-                    <td className="whitespace-nowrap px-4 py-2.5 font-medium text-ink-700 dark:text-ink-200">{item.label}</td>
+                  <tr key={item.label} className="h-12 border-b border-ink-50 last:border-0 dark:border-ink-800/60">
+                    <td className="truncate whitespace-nowrap px-4 py-2 font-medium text-ink-700 dark:text-ink-200">{item.label}</td>
                     {ACTIONS.map((a) => (
                       <td key={a.key} className="px-4 py-2.5 text-center">
                         <input

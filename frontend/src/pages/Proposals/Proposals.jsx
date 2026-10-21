@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Eye, Download, Settings2, FileSignature, FilePen, Send, SearchCheck, CheckCircle2, XCircle, Timer, IndianRupee, Hourglass, Handshake } from 'lucide-react'
+import { Plus, Eye, Settings2, FileSignature, FilePen, Send, SearchCheck, CheckCircle2, XCircle, Timer, IndianRupee, Hourglass, Handshake } from 'lucide-react'
 import { PageHeader } from '../../components/common/PageHeader'
 import { SearchBar } from '../../components/common/SearchBar'
 import { FilterToggleButton } from '../../components/common/FilterPanel'
@@ -18,7 +18,8 @@ import { api } from '../../api/mockServer'
 import { PROPOSAL_STATUSES } from '../../data/constants'
 import { salesUsers, getUserById } from '../../data/users'
 import { formatCurrency, formatDate } from '../../utils/format'
-import { downloadCsv } from '../../utils/csv'
+import { ExportMenu } from '../../components/common/ExportMenu'
+import { describeFilters } from '../../utils/exporter'
 import { PR_OPEN, PR_SENT_STATES } from '../../utils/proposalCalc'
 import { sweepExpired } from './proposalClient'
 
@@ -109,25 +110,25 @@ export default function Proposals() {
   const clear = () => setF({ number: '', status: 'all', owner: 'all', company: 'all', deal: 'all', contact: 'all', from: '', to: '', min: '', max: '', expiry: 'all' })
 
   const columns = [
-    { key: 'number', header: 'Proposal', sortable: true, render: (r) => <span className="font-medium text-ink-800 dark:text-ink-100">{r.number}<span className="ml-1.5 text-[10px] font-semibold text-brand-600">v{r.version}</span></span> },
-    { key: 'title', header: 'Title', sortable: true, render: (r) => <span className="line-clamp-1 max-w-[240px]">{r.title}</span> },
-    { key: 'customerName', header: 'Client', sortable: true },
-    { key: 'dealId', header: 'Deal', render: (r) => (r.dealId ? <button onClick={(e) => { e.stopPropagation(); navigate(`/deals/${r.dealId}`) }} className="text-brand-600 hover:underline dark:text-brand-400">{r.dealId}</button> : <span className="text-ink-400">—</span>) },
-    { key: 'value', header: 'Value', sortable: true, render: (r) => <span className="font-medium">{formatCurrency(r.value)}</span> },
-    { key: 'createdDate', header: 'Created', sortable: true, render: (r) => formatDate(r.createdDate) },
-    { key: 'validUntil', header: 'Expiry', sortable: true, render: (r) => <span className={PR_OPEN.includes(r.status) && r.validUntil < todayStr() ? 'font-medium text-rose-500' : ''}>{formatDate(r.validUntil)}</span> },
-    { key: 'status', header: 'Status', render: (r) => <StatusBadge status={r.status} /> },
-    { key: 'ownerId', header: 'Owner', render: (r) => getUserById(r.ownerId)?.name.split(' ')[0] || '—' },
+    { key: 'number', width: 170, header: 'Proposal', sortable: true, render: (r) => <span className="font-medium text-ink-800 dark:text-ink-100">{r.number}<span className="ml-1.5 text-[10px] font-semibold text-brand-600">v{r.version}</span></span> },
+    { key: 'title', width: 250, header: 'Title', sortable: true, render: (r) => <span className="line-clamp-1 max-w-[240px]">{r.title}</span> },
+    { key: 'customerName', width: 200, header: 'Client', sortable: true },
+    { key: 'dealId', width: 110, header: 'Deal', render: (r) => (r.dealId ? <button onClick={(e) => { e.stopPropagation(); navigate(`/deals/${r.dealId}`) }} className="text-brand-600 hover:underline dark:text-brand-400">{r.dealId}</button> : <span className="text-ink-400">—</span>) },
+    { key: 'value', width: 140, header: 'Value', sortable: true, render: (r) => <span className="font-medium">{formatCurrency(r.value)}</span> },
+    { key: 'createdDate', width: 130, header: 'Created', sortable: true, render: (r) => formatDate(r.createdDate) },
+    { key: 'validUntil', width: 130, header: 'Expiry', sortable: true, render: (r) => <span className={PR_OPEN.includes(r.status) && r.validUntil < todayStr() ? 'font-medium text-rose-500' : ''}>{formatDate(r.validUntil)}</span> },
+    { key: 'status', width: 130, header: 'Status', render: (r) => <StatusBadge status={r.status} /> },
+    { key: 'ownerId', width: 140, header: 'Owner', render: (r) => getUserById(r.ownerId)?.name.split(' ')[0] || '—' },
     { key: 'actions', header: '', headerClassName: 'w-10', render: (r) => <div className="flex justify-end" onClick={(e) => e.stopPropagation()}><IconButton icon={Eye} size="sm" aria-label="Open" onClick={() => navigate(`/proposals/${r.id}`)} /></div> },
   ]
 
-  const exportCsv = () => {
-    downloadCsv('proposals.csv', crud.allFiltered, [
-      { label: 'Proposal #', value: 'number' }, { label: 'Version', value: 'version' }, { label: 'Title', value: 'title' }, { label: 'Client', value: 'customerName' },
-      { label: 'Deal', value: 'dealId' }, { label: 'Value', value: 'value' }, { label: 'Created', value: 'createdDate' }, { label: 'Expiry', value: 'validUntil' }, { label: 'Status', value: 'status' },
-    ])
-    toast(`Exported ${crud.allFiltered.length} proposals.`, { type: 'success' })
-  }
+  // Export: every proposal that matches the search and filters on screen
+  const exportColumns = [
+    { label: 'Proposal #', value: 'number' }, { label: 'Version', value: 'version' }, { label: 'Title', value: 'title' }, { label: 'Client', value: 'customerName' },
+    { label: 'Deal', value: 'dealId' }, { label: 'Value', value: (r) => Number(r.value) || 0, align: 'right' }, { label: 'Created', value: 'createdDate' }, { label: 'Expiry', value: 'validUntil' },
+    { label: 'Status', value: 'status' }, { label: 'Owner', value: (r) => getUserById(r.ownerId)?.name || '' }, { label: 'Branch', value: 'branch' },
+  ]
+  const exportFilters = describeFilters([['Search', crud.search && `"${crud.search}"`], ['Number', f.number], ['Status', f.status], ['Owner', f.owner !== 'all' && (getUserById(f.owner)?.name || f.owner)], ['Company', f.company], ['Deal', f.deal], ['Contact', f.contact], ['Created from', f.from], ['Created to', f.to], ['Value from', f.min], ['Value to', f.max], ['Expiry', f.expiry]])
 
   return (
     <div>
@@ -136,7 +137,7 @@ export default function Proposals() {
         description="Solution proposals created from deals — present scope, approach and indicative pricing, then turn them into quotations."
         actions={<>
           <Button variant="secondary" icon={Settings2} onClick={() => navigate('/proposal-templates')}>Manage Templates</Button>
-          <Button variant="secondary" icon={Download} onClick={exportCsv}>Export</Button>
+          <ExportMenu title="Proposals" noun="proposal" columns={exportColumns} rows={() => crud.allFiltered} filters={exportFilters} />
           {hasPermission('Proposals', 'create') && <Button icon={Plus} onClick={() => setPickerOpen(true)}>New Proposal</Button>}
         </>}
       />

@@ -2,10 +2,7 @@ import { useOptions, asChoices } from '../../hooks/useOptions'
 import { useEffect, useRef, useState } from 'react'
 import { useAllServiceNames } from '../../hooks/useProducts'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import {
-  Plus, Download, Upload, Trash2, Eye, Pencil, UserCog, ClipboardCheck, Handshake,
-  Ban, MoreVertical, X, Copy, AlertOctagon, XCircle, Search,
-} from 'lucide-react'
+import { Plus, Upload, Trash2, Eye, Pencil, UserCog, ClipboardCheck, Handshake, Ban, MoreVertical, X, Copy, AlertOctagon, XCircle, Search } from 'lucide-react'
 import { PageHeader } from '../../components/common/PageHeader'
 import { SearchBar } from '../../components/common/SearchBar'
 import { FilterPanel, FilterToggleButton } from '../../components/common/FilterPanel'
@@ -25,7 +22,10 @@ import { salesUsers, getUserById, USERS } from '../../data/users'
 import { getDataScope, matchesDataScope } from '../../data/dataScope'
 import { canTransition, isQualificationComplete } from '../../data/enquiryWorkflow'
 import { formatDate, isOverdue } from '../../utils/format'
-import { downloadCsv, parseCsv } from '../../utils/csv'
+import { ExportMenu } from '../../components/common/ExportMenu'
+import { filterText } from '../../utils/exporter'
+import { ImportDialog } from '../../components/import/ImportDialog'
+import { TemplateButton } from '../../components/import/TemplateButton'
 import { EnquiryFormModal } from './EnquiryFormModal'
 import { QualifyEnquiryModal } from './QualifyEnquiryModal'
 import { AssignEnquiryModal } from './AssignEnquiryModal'
@@ -159,9 +159,9 @@ export default function Enquiries() {
   }
 
   const columns = [
-    { key: 'id', header: 'Enquiry ID', sortable: true, className: 'font-medium text-ink-500 text-xs' },
+    { key: 'id', width: 120, header: 'Enquiry ID', sortable: true, className: 'font-medium text-ink-500 text-xs' },
     {
-      key: 'name', header: 'Name', sortable: true,
+      key: 'name', width: 270, header: 'Name', sortable: true,
       render: (row) => (
         <div className="flex items-center gap-2.5">
           <Avatar name={row.name} size="sm" />
@@ -172,16 +172,16 @@ export default function Enquiries() {
         </div>
       ),
     },
-    { key: 'company', header: 'Company' },
-    { key: 'phone', header: 'Phone' },
-    { key: 'interestedService', header: 'Interested Product/Service', render: (row) => row.interestedService || row.interestedProduct || '—' },
-    { key: 'source', header: 'Source' },
-    { key: 'priority', header: 'Priority', render: (row) => <PriorityBadge priority={row.priority} /> },
-    { key: 'status', header: 'Status', render: (row) => <StatusBadge status={row.status} /> },
-    { key: 'assignedUser', header: 'Assigned To', render: (row) => getUserById(row.assignedUser)?.name.split(' ')[0] || 'Unassigned' },
-    { key: 'createdDate', header: 'Created Date', sortable: true, render: (row) => formatDate(row.createdDate) },
+    { key: 'company', width: 200, header: 'Company' },
+    { key: 'phone', width: 150, header: 'Phone' },
+    { key: 'interestedService', width: 220, header: 'Interested Product/Service', render: (row) => row.interestedService || row.interestedProduct || '—' },
+    { key: 'source', width: 170, header: 'Source' },
+    { key: 'priority', width: 120, header: 'Priority', render: (row) => <PriorityBadge priority={row.priority} /> },
+    { key: 'status', width: 140, header: 'Status', render: (row) => <StatusBadge status={row.status} /> },
+    { key: 'assignedUser', width: 150, header: 'Assigned To', render: (row) => getUserById(row.assignedUser)?.name.split(' ')[0] || 'Unassigned' },
+    { key: 'createdDate', width: 140, header: 'Created Date', sortable: true, render: (row) => formatDate(row.createdDate) },
     {
-      key: 'nextFollowUp', header: 'Next Follow-up', sortable: true,
+      key: 'nextFollowUp', width: 150, header: 'Next Follow-up', sortable: true,
       render: (row) => row.nextFollowUp ? <span className={isOverdue(row.nextFollowUp) ? 'font-medium text-rose-500' : ''}>{formatDate(row.nextFollowUp)}</span> : '—',
     },
     {
@@ -264,35 +264,22 @@ export default function Enquiries() {
     })
   }
 
-  const handleExport = () => {
-    downloadCsv('enquiries.csv', crud.allFiltered, [
-      { label: 'Enquiry ID', value: 'id' }, { label: 'Name', value: 'name' }, { label: 'Company', value: 'company' },
-      { label: 'Phone', value: 'phone' }, { label: 'Interested Product/Service', value: (r) => r.interestedService || r.interestedProduct || '' },
-      { label: 'Source', value: 'source' }, { label: 'Status', value: 'status' }, { label: 'Priority', value: 'priority' },
-      { label: 'Assigned To', value: (r) => getUserById(r.assignedUser)?.name || '' },
-      { label: 'Created Date', value: 'createdDate' }, { label: 'Last Activity', value: 'lastContactedDate' }, { label: 'Next Follow-up', value: 'nextFollowUp' },
-    ])
-    toast(`Exported ${crud.allFiltered.length} enquiries.`, { type: 'success' })
-  }
+  // Export: every enquiry that matches the search and filters on screen (all pages, not only the visible one), for the branch being viewed
+  const exportColumns = [
+    { label: 'Enquiry ID', value: 'id' }, { label: 'Name', value: 'name' }, { label: 'Email', value: 'email' }, { label: 'Company', value: 'company' },
+    { label: 'Phone', value: 'phone' }, { label: 'City', value: 'city' }, { label: 'Interested Product/Service', value: (r) => r.interestedService || r.interestedProduct || '' },
+    { label: 'Source', value: 'source' }, { label: 'Status', value: 'status' }, { label: 'Priority', value: 'priority' },
+    { label: 'Assigned To', value: (r) => getUserById(r.assignedUser)?.name || '' }, { label: 'Branch', value: 'branch' },
+    { label: 'Created Date', value: 'createdDate' }, { label: 'Last Activity', value: 'lastContactedDate' }, { label: 'Next Follow-up', value: 'nextFollowUp' },
+  ]
+  const exportFilters = filterText({ search: crud.search, values: crud.filters, defs: filterDefs, extra: [['Created', [advanced.createdFrom, advanced.createdTo].some(Boolean) ? `${advanced.createdFrom || '…'} to ${advanced.createdTo || '…'}` : ''], ['Follow-up', [advanced.followUpFrom, advanced.followUpTo].some(Boolean) ? `${advanced.followUpFrom || '…'} to ${advanced.followUpTo || '…'}` : ''], ['Campaign', advanced.campaign]] })
 
-  // Each row is created through the same server rules as a single enquiry; the result says how many were accepted and how many were refused.
+  // Import: the file is read and every row checked (nothing saved) in the import dialog, which then saves the valid rows through the same server rules as the Add form and reports the rest.
+  const [importFile, setImportFile] = useState(null)
   const handleImport = (e) => {
     const file = e.target.files?.[0]
     e.target.value = ''
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = async () => {
-      const rows = parseCsv(String(reader.result))
-      const results = await Promise.allSettled(rows.map((r) => crud.create({
-        name: r.name || r.Name || 'Unnamed Enquiry', company: r.company || r.Company || '', email: r.email || r.Email || '', phone: r.phone || r.Phone || '', city: r.city || r.City || '',
-        source: 'Import', enquiryType: 'General Enquiry', priority: 'Medium', interestedProduct: r.service || r.Service || '', interestedService: r.service || r.Service || '',
-        requirementType: 'New Requirement', requirementDescription: r.requirement || 'Imported via CSV upload.', preferredContactMethod: 'Phone', country: 'India',
-      })))
-      const ok = results.filter((x) => x.status === 'fulfilled').length
-      const failed = results.length - ok
-      toast(failed ? `Imported ${ok} of ${results.length} enquiries; ${failed} were refused (check those rows for a missing name or an invalid value).` : `Imported ${ok} enquiries.`, { type: failed ? 'warning' : 'success' })
-    }
-    reader.readAsText(file)
+    if (file) setImportFile(file)
   }
 
   const openMatch = (m) => {
@@ -317,13 +304,15 @@ export default function Enquiries() {
         }
         actions={
           <>
-            {canCreate && <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleImport} />}
+            {canCreate && <input ref={fileRef} type="file" accept=".xlsx,.csv" className="hidden" onChange={handleImport} />}
             {canCreate && <Button variant="secondary" icon={Upload} onClick={() => fileRef.current?.click()}>Import</Button>}
-            {canExport && <Button variant="secondary" icon={Download} onClick={handleExport}>Export</Button>}
+            {canCreate && <TemplateButton module="enquiries" />}
+            {canExport && <ExportMenu title="Enquiries" noun="enquiry" columns={exportColumns} rows={() => crud.allFiltered} filters={exportFilters} permission={canExport} />}
             {canCreate && <Button icon={Plus} onClick={() => setCreateOpen(true)}>Add Enquiry</Button>}
           </>
         }
       />
+      {importFile && <ImportDialog module="enquiries" file={importFile} onClose={() => setImportFile(null)} onDone={() => crud.refresh()} />}
 
       <div className="mb-3 flex flex-wrap gap-1.5">
         {STATUS_PILLS.map((s) => {

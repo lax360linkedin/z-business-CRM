@@ -63,7 +63,7 @@ function IntegrationPanel({ s, onChange }) {
       {!s.integrations.length ? (
         <div className="flex items-start gap-3 text-sm text-ink-500"><Plug size={18} className="mt-0.5 shrink-0 text-ink-400" /><p>No integration is connected to this source. Enquiries from it are entered by people{can ? ', or record the account or form that will feed it using “Add mapping”' : ''}. A connection is shown here only after the Integrations module reports it.</p></div>
       ) : (
-        <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-sm">
+        <div className="overflow-x-auto"><table className="crm-table w-full min-w-[720px] text-sm">
           <thead><tr className="border-b border-ink-100 text-left text-xs font-semibold uppercase text-ink-500 dark:border-ink-800"><th className="py-2 pr-3">Platform</th><th className="pr-3">Account / form</th><th className="pr-3">Mapped branch</th><th className="pr-3">Status</th><th className="pr-3">Last successful sync</th><th className="pr-3">Latest error</th>{can && <th className="w-20"><span className="sr-only">Actions</span></th>}</tr></thead>
           <tbody>{s.integrations.map((m) => (
             <tr key={m.id} className="border-b border-ink-50 last:border-0 dark:border-ink-800/60">

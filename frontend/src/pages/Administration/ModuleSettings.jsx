@@ -18,7 +18,7 @@ import {
 
 const box = 'rounded-2xl border border-ink-100 bg-white p-6 shadow-card dark:border-ink-800 dark:bg-ink-900'
 
-// What each module's settings page holds. `lists` are dropdown / filter lists (Settings -> that module only shows its own); `fixed` is a workflow the server enforces (shown, not edited);
+// What each module's settings page holds. `lists` are dropdown / filter lists (Administration -> Module Configuration shows each module its own); `fixed` is a workflow the server enforces (shown, not edited);
 // `links` point at configuration that lives on the module's own screen; `panel` embeds the module's existing settings form.
 export const MODULES = {
   leads: {
@@ -140,11 +140,11 @@ const SHARED = {
   payment_terms: 'Shared by Quotations and Sales Orders.',
 }
 
-/** Settings -> <module>: only that module's own configuration - its dropdown values, its workflow (read-only), and the settings that live on its own screen. */
+/** Administration -> Module Configuration -> <module>: only that module's own configuration - its dropdown values, its workflow (read-only), and the settings that live on its own screen. */
 export default function ModuleSettings() {
   const { key } = useParams()
   const m = MODULES[key]
-  if (!m) return <Navigate to="/settings/company-profile" replace />
+  if (!m) return <Navigate to="/administration/company-profile" replace />
   const Panel = m.panel
   return (
     <div className="space-y-4" key={key}>

@@ -54,6 +54,34 @@ const cachingAdapter = (config) => {
   return promise
 }
 
+// ---- read tracking (for the Refresh button) --------------------------------------------------------------------------------------------------
+// While a refresh is running, every GET the screen makes is counted, so the button knows when the page has finished loading and whether any load really failed
+// (no answer / a 5xx; a 4xx such as "not allowed to see this list" is a normal answer, not a failed refresh).
+const trackers = new Set()
+export function trackReads() {
+  const t = { started: 0, inflight: 0, failures: [], lastActivity: Date.now() }
+  trackers.add(t)
+  t.settled = (timeoutMs = 25000, quietMs = 220) => new Promise((resolve) => {
+    const begun = Date.now()
+    const tick = () => {
+      if ((t.inflight === 0 && Date.now() - t.lastActivity >= quietMs) || Date.now() - begun > timeoutMs) { trackers.delete(t); resolve(t) } else setTimeout(tick, 60)
+    }
+    tick()
+  })
+  return t
+}
+api.interceptors.request.use((config) => {
+  if (String(config.method).toLowerCase() === 'get' && trackers.size) trackers.forEach((t) => { t.started += 1; t.inflight += 1; t.lastActivity = Date.now() })
+  return config
+})
+const readDone = (config, error) => {
+  if (String(config?.method).toLowerCase() !== 'get' || !trackers.size) return
+  trackers.forEach((t) => {
+    t.inflight = Math.max(0, t.inflight - 1); t.lastActivity = Date.now()
+    if (error && (!error.response || error.response.status >= 500) && !String(config.url).includes('/auth/')) t.failures.push(errorMessage(error))
+  })
+}
+
 const SCOPE_KEY = 'business_crm_branch_scope_v1'
 const readScope = () => { try { return localStorage.getItem(SCOPE_KEY) || '' } catch { return '' } }
 
@@ -89,6 +117,7 @@ export function onWrite(fn) { writeListeners.add(fn); return () => writeListener
 
 api.interceptors.response.use(
   (res) => {
+    readDone(res.config)
     if (res.config && !['get', 'head', 'options'].includes(String(res.config.method).toLowerCase()) && !String(res.config.url).includes('/auth/')) {
       reads.clear() // something changed on the server: nothing read before it may be served again
       writeListeners.forEach((fn) => fn(res.config))
@@ -97,6 +126,8 @@ api.interceptors.response.use(
   },
   async (error) => {
     const { response, config } = error
+    const willRetry = response?.status === 401 && config && !config._retried && !String(config.url).includes('/auth/') && !!readSessionBlob()
+    readDone(config, willRetry ? undefined : error) // a read that is about to be replayed after a token renewal is closed here and counted again when it is replayed
     // a failed write is never silent: say why (screens that explain it themselves can pass { silent: true })
     if (config && !config.silent && !['get', 'head', 'options'].includes(String(config.method).toLowerCase()) && !String(config.url).includes('/auth/') && response?.status !== 401) {
       window.dispatchEvent(new CustomEvent('crm:toast', { detail: { message: errorMessage(error), type: 'error' } }))

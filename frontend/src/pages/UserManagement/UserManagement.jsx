@@ -5,6 +5,9 @@ import {
   Plus, MoreVertical, Eye, Pencil, CheckCircle2, Ban, ShieldAlert, Unlock, KeyRound,
   UserCog, Building2, History, Users, UserCheck, UserX, Clock3, Lock, LogOut, Trash2,
 } from 'lucide-react'
+import { ExportMenu } from '../../components/common/ExportMenu'
+import { filterText } from '../../utils/exporter'
+import { Breadcrumbs } from '../../components/common/Breadcrumbs'
 import { PageHeader } from '../../components/common/PageHeader'
 import { SearchBar } from '../../components/common/SearchBar'
 import { FilterPanel, FilterToggleButton } from '../../components/common/FilterPanel'
@@ -27,7 +30,7 @@ import { departmentNames } from '../../utils/orgLookup'
 import { LOGIN_ROLES, USER_ACCOUNT_STATUSES } from '../../data/constants'
 import { canViewCredentials, accessLevelOf } from '../../data/permissions'
 import { USERS } from '../../data/users'
-import { formatDate, timeAgo, isOverdue } from '../../utils/format'
+import { formatDate, formatDateTime, timeAgo, isOverdue } from '../../utils/format'
 
 const LAST_LOGIN_OPTIONS = [
   { value: 'never', label: 'Never Logged In' },
@@ -159,9 +162,18 @@ export default function UserManagement() {
     })
   }
 
+  // Export: every account that matches the search and filters on screen. Passwords are never exported; the username only for the roles that may already see it on this page.
+  const exportColumns = [
+    { label: 'User ID', value: 'id' }, { label: 'Name', value: 'name' }, { label: 'Email', value: 'email' }, ...(canSeeCredentials ? [{ label: 'Username', value: 'username' }] : []),
+    { label: 'Phone', value: 'phone' }, { label: 'Role', value: (r) => accessLevelOf(r) }, { label: 'Permission template', value: 'role' }, { label: 'Branch', value: (r) => (accessLevelOf(r) === 'Super Admin' ? 'All branches' : r.branch || '') },
+    { label: 'Department', value: 'department' }, { label: 'Employee', value: (r) => USERS.find((u) => u.id === r.employeeId)?.name || '' }, { label: 'Status', value: 'status' },
+    { label: 'Last login', value: (r) => (r.lastLogin ? formatDateTime(r.lastLogin) : 'Never') }, { label: 'Created', value: 'createdDate' },
+  ]
+  const exportFilters = filterText({ search: crud.search, values: crud.filters, defs: filterDefs, extra: [['Last login', lastLoginFilter]] })
+
   const columns = [
     {
-      key: 'name', header: 'Profile', sortable: true,
+      key: 'name', width: 270, header: 'Profile', sortable: true,
       render: (row) => (
         <div className="flex items-center gap-2.5">
           <Avatar name={row.name} size="sm" />
@@ -172,22 +184,22 @@ export default function UserManagement() {
         </div>
       ),
     },
-    { key: 'email', header: 'Email' },
+    { key: 'email', width: 250, header: 'Email' },
     // Username + Password columns only render for the four roles the spec names as having
     // credential-view access (see canViewCredentials) — never masked, per the explicit
     // "do not replace with dots/status text" requirement, for the roles authorized to see it.
     ...(canSeeCredentials ? [
-      { key: 'username', header: 'Username' },
-      { key: 'password', header: 'Password', render: (row) => <span className="font-mono text-xs">{row.password}</span> },
+      { key: 'username', width: 150, header: 'Username' },
+      { key: 'password', width: 150, header: 'Password', render: (row) => <span className="font-mono text-xs">{row.password}</span> },
     ] : []),
-    { key: 'phone', header: 'Phone' },
-    { key: 'accessLevel', header: 'Role', render: (row) => <span><span className="font-medium">{accessLevelOf(row)}</span>{row.role !== accessLevelOf(row) && <span className="block text-[11px] text-ink-400">{row.role}</span>}</span> },
-    { key: 'branch', header: 'Branch', render: (row) => (accessLevelOf(row) === 'Super Admin' ? <span className="text-xs text-ink-400">All branches</span> : <BranchBadge branch={row.branch} />) },
-    { key: 'department', header: 'Department' },
-    { key: 'employeeId', header: 'Employee', render: (row) => USERS.find((u) => u.id === row.employeeId)?.name.split(' ')[0] || '—' },
-    { key: 'status', header: 'Status', render: (row) => <StatusBadge status={row.status} /> },
-    { key: 'lastLogin', header: 'Last Login', sortable: true, render: (row) => row.lastLogin ? timeAgo(row.lastLogin) : <span className="text-ink-400">Never</span> },
-    { key: 'createdDate', header: 'Created', sortable: true, render: (row) => formatDate(row.createdDate) },
+    { key: 'phone', width: 150, header: 'Phone' },
+    { key: 'accessLevel', width: 170, header: 'Role', render: (row) => <span><span className="font-medium">{accessLevelOf(row)}</span>{row.role !== accessLevelOf(row) && <span className="block text-[11px] text-ink-400">{row.role}</span>}</span> },
+    { key: 'branch', width: 150, header: 'Branch', render: (row) => (accessLevelOf(row) === 'Super Admin' ? <span className="text-xs text-ink-400">All branches</span> : <BranchBadge branch={row.branch} />) },
+    { key: 'department', width: 150, header: 'Department' },
+    { key: 'employeeId', width: 140, header: 'Employee', render: (row) => USERS.find((u) => u.id === row.employeeId)?.name.split(' ')[0] || '—' },
+    { key: 'status', width: 130, header: 'Status', render: (row) => <StatusBadge status={row.status} /> },
+    { key: 'lastLogin', width: 140, header: 'Last Login', sortable: true, render: (row) => row.lastLogin ? timeAgo(row.lastLogin) : <span className="text-ink-400">Never</span> },
+    { key: 'createdDate', width: 130, header: 'Created', sortable: true, render: (row) => formatDate(row.createdDate) },
     {
       key: 'actions', header: '', headerClassName: 'w-10',
       render: (row) => (
@@ -197,10 +209,10 @@ export default function UserManagement() {
             width="w-56"
             trigger={<IconButton icon={MoreVertical} size="sm" />}
           >
-            <DropdownItem icon={Eye} onClick={() => navigate(`/user-management/${row.id}`)}>View User</DropdownItem>
+            <DropdownItem icon={Eye} onClick={() => navigate(`/administration/users/${row.id}`)}>View User</DropdownItem>
             {canManage && !isProtected(row) && <>
-              <DropdownItem icon={Pencil} onClick={() => navigate(`/user-management/${row.id}?edit=1`)}>Edit User</DropdownItem>
-              <DropdownItem icon={History} onClick={() => navigate(`/user-management/${row.id}?tab=login`)}>View Login Activity</DropdownItem>
+              <DropdownItem icon={Pencil} onClick={() => navigate(`/administration/users/${row.id}?edit=1`)}>Edit User</DropdownItem>
+              <DropdownItem icon={History} onClick={() => navigate(`/administration/users/${row.id}?tab=login`)}>View Login Activity</DropdownItem>
               <DropdownDivider />
               <DropdownLabel>Account Access</DropdownLabel>
               {row.status !== 'Active' && <DropdownItem icon={CheckCircle2} onClick={() => setConfirmAction({ row, type: 'activate' })}>Activate User</DropdownItem>}
@@ -210,8 +222,8 @@ export default function UserManagement() {
               {row.status === 'Active' && <DropdownItem icon={LogOut} danger onClick={() => terminateSession(row)}>Terminate Session</DropdownItem>}
               <DropdownItem icon={KeyRound} onClick={() => resetPassword(row)}>Reset Password</DropdownItem>
               <DropdownDivider />
-              <DropdownItem icon={UserCog} onClick={() => navigate(`/user-management/${row.id}?tab=permissions`)}>Role & permissions</DropdownItem>
-              <DropdownItem icon={Building2} onClick={() => navigate(`/user-management/${row.id}?edit=department`)}>Change Department</DropdownItem>
+              <DropdownItem icon={UserCog} onClick={() => navigate(`/administration/users/${row.id}?tab=permissions`)}>Role & permissions</DropdownItem>
+              <DropdownItem icon={Building2} onClick={() => navigate(`/administration/users/${row.id}?edit=department`)}>Change Department</DropdownItem>
             </>}
             {user?.accessLevel === 'Super Admin' && row.id !== user?.accountId && <>
               <DropdownDivider />
@@ -234,9 +246,10 @@ export default function UserManagement() {
   return (
     <div>
       <PageHeader
+        breadcrumb={<Breadcrumbs items={[{ label: 'Administration', href: '/administration' }, { label: 'User Management' }]} />}
         title="User Management"
         description="Create logins for Admins and Employees, set their role and module permissions, and manage their credentials and access. Super Admin only."
-        actions={hasPermission('User Management', 'create') && <Button icon={Plus} onClick={() => setCreateOpen(true)}>Add User</Button>}
+        actions={<><ExportMenu title="User Accounts" name="user-accounts" noun="account" columns={exportColumns} rows={() => crud.allFiltered} filters={exportFilters} />{hasPermission('User Management', 'create') && <Button icon={Plus} onClick={() => setCreateOpen(true)}>Add User</Button>}</>}
       />
 
       <div className="mb-5 grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-5">
@@ -273,7 +286,7 @@ export default function UserManagement() {
         columns={columns}
         data={crud.items}
         loading={crud.loading}
-        onRowClick={(row) => navigate(`/user-management/${row.id}`)}
+        onRowClick={(row) => navigate(`/administration/users/${row.id}`)}
         sort={crud.sort}
         onSortChange={crud.setSort}
         page={crud.page}

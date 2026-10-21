@@ -3,7 +3,7 @@ import {
   FileText, FileSignature, Activity, ListChecks, CalendarDays, Package, FolderKanban,
   FileCheck, ClipboardCheck, FolderOpen, Receipt, CreditCard, Wallet, Megaphone, Target, LineChart,
   Mail, MessageCircle, History, LifeBuoy, BarChart3, Sparkles, Bell, UserCog, UsersRound,
-  ShieldCheck, Settings, Fingerprint, MapPin,
+  ShieldCheck, Settings, Fingerprint, MapPin, Network, Percent, Lock, KeyRound, Zap,
 } from 'lucide-react'
 
 export const NAV_SECTIONS = [
@@ -95,15 +95,62 @@ export const NAV_SECTIONS = [
   {
     title: 'Team',
     items: [
-      { label: 'Branches', to: '/branches', icon: MapPin },
       { label: 'Employees', to: '/employees', icon: UserCog },
-      { label: 'User Management', to: '/user-management', icon: Fingerprint },
       { label: 'Teams', to: '/teams', icon: UsersRound },
-      { label: 'Roles & Permissions', to: '/roles-permissions', icon: ShieldCheck },
+    ],
+  },
+  // Administration: everything that configures or controls the system itself. `label` is the permission module (unchanged, so every stored role keeps its rights);
+  // "Settings" is the module that guards the configuration pages (company profile, tax, security, logs, communication, automation, module settings) - shown here as "Administration".
+  {
+    title: 'Administration',
+    items: [
+      { label: 'Settings', display: 'Administration', to: '/administration', icon: Settings, exclude: ['/administration/branches', '/administration/users', '/administration/roles-permissions'] },
+      { label: 'Branches', to: '/administration/branches', icon: MapPin },
+      { label: 'User Management', to: '/administration/users', icon: Fingerprint },
+      { label: 'Roles & Permissions', to: '/administration/roles-permissions', icon: ShieldCheck },
+    ],
+  },
+]
+
+/**
+ * The Administration area, grouped the way people look for things. `module` is the permission module that must be viewable for an entry to appear (a Super Admin sees all of them,
+ * an Admin the ones guarded by "Settings"). The per-module configuration pages (Leads, Invoices ...) are added to the "Module Configuration" group by the Administration page itself.
+ * An entry with `external` opens a page of another module (so nothing is duplicated here).
+ */
+export const ADMIN_CATEGORIES = [
+  {
+    key: 'organization', title: 'Organization', description: 'Your company, its branches and the defaults every document uses.',
+    items: [
+      { key: 'company-profile', label: 'Company Profile', to: '/administration/company-profile', icon: Building2, module: 'Settings', description: 'Company name, contact details, GST number and the logo shown on documents.' },
+      { key: 'branches', label: 'Branches', to: '/administration/branches', icon: MapPin, module: 'Branches', description: 'Branch offices, their administrators and a side-by-side comparison.' },
+      { key: 'departments', label: 'Departments & Teams', to: '/employees?view=departments', icon: Network, module: 'Employees', external: true, description: 'Managed in Employees, so they stay linked to the people in them.' },
+      { key: 'tax-settings', label: 'Tax Settings', to: '/administration/tax-settings', icon: Percent, module: 'Settings', description: 'The default GST rate and whether prices include tax.' },
     ],
   },
   {
-    items: [{ label: 'Settings', to: '/settings', icon: Settings }],
+    key: 'access', title: 'Users & Access', description: 'Who can sign in, what they may do and how sessions are protected.',
+    items: [
+      { key: 'users', label: 'User Management', to: '/administration/users', icon: Fingerprint, module: 'User Management', description: 'Create logins, set roles, reset passwords and manage account status.' },
+      { key: 'roles-permissions', label: 'Roles & Permissions', to: '/administration/roles-permissions', icon: ShieldCheck, module: 'Roles & Permissions', description: 'What each role may view, create, edit, delete and export.' },
+      { key: 'security', label: 'Security', to: '/administration/security', icon: Lock, module: 'Settings', description: 'Password rules, session length and automatic sign-out.' },
+    ],
+  },
+  { key: 'modules', title: 'Module Configuration', description: 'The choices, statuses and rules each CRM module offers.', items: [] },
+  {
+    key: 'communication', title: 'Communication & Automation', description: 'Notifications, e-mail, WhatsApp and the n8n workflows that connect the CRM to other tools.',
+    items: [
+      { key: 'notification-settings', label: 'Notification Settings', to: '/administration/notification-settings', icon: Bell, module: 'Settings', description: 'Which events create an in-app notification.' },
+      { key: 'email-settings', label: 'Email Settings', to: '/administration/email-settings', icon: Mail, module: 'Settings', description: 'Whether e-mail sending is connected.' },
+      { key: 'whatsapp-settings', label: 'WhatsApp Settings', to: '/administration/whatsapp-settings', icon: MessageCircle, module: 'Settings', description: 'Whether WhatsApp messaging is connected.' },
+      { key: 'automation', label: 'Automation', to: '/administration/automation', icon: Zap, module: 'Settings', description: 'n8n connection, workflows and the run history.' },
+    ],
+  },
+  {
+    key: 'audit', title: 'Monitoring & Audit', description: 'Who signed in and what changed.',
+    items: [
+      { key: 'login-history', label: 'Login History', to: '/administration/login-history', icon: KeyRound, module: 'Settings', description: 'Every sign-in attempt: who, when, from where and whether it worked.' },
+      { key: 'audit-logs', label: 'Audit Logs', to: '/administration/audit-logs', icon: History, module: 'Settings', description: 'A read-only record of sign-ins, refusals and changes.' },
+    ],
   },
 ]
 
@@ -119,5 +166,5 @@ export const QUICK_CREATE_ITEMS = [
   { label: 'New Project', to: '/projects?create=1', module: 'Projects' },
   { label: 'New Invoice', to: '/invoices?create=1', module: 'Invoices' },
   { label: 'New Ticket', to: '/tickets?create=1', module: 'Tickets' },
-  { label: 'New User', to: '/user-management?create=1', module: 'User Management' },
+  { label: 'New User', to: '/administration/users?create=1', module: 'User Management' },
 ]

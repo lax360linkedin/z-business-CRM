@@ -1,13 +1,11 @@
-import { useRef, useState } from 'react'
-import { Upload, Download, CheckCircle2, AlertTriangle } from 'lucide-react'
+import { useState } from 'react'
+import { AlertTriangle } from 'lucide-react'
 import { Modal } from '../../components/common/Modal'
 import { Button } from '../../components/common/Button'
 import { FormField, Input, Select, Textarea } from '../../components/common/FormField'
 import { useToast } from '../../context/ToastContext'
 import { EMPLOYEE_STATUSES, isWorking, todayKey } from '../../utils/employeeRules'
-import { downloadBlob } from '../Invoices/invoiceClient'
-import { changeStatus, grantAccess, bulkAction, importEmployees, orgErr, orgFields } from './employeeClient'
-import { IMPORT_TEMPLATE, parseEmployeeCsv } from './employeeExport'
+import { changeStatus, grantAccess, bulkAction, orgErr, orgFields } from './employeeClient'
 import { genTempPassword } from '../../utils/password'
 import { AccessSetup, initialAccess, accessToAccount } from '../UserManagement/AccessSetup'
 import { CredentialsCard } from '../UserManagement/AddUserModal'
@@ -86,36 +84,4 @@ export function BulkDialog({ ids, org, roles, perms, onClose, onDone }) {
   )
 }
 
-export function ImportDialog({ onClose, onDone }) {
-  const { toast } = useToast()
-  const fileRef = useRef(null)
-  const [rows, setRows] = useState([]); const [report, setReport] = useState(null); const [error, setError] = useState(''); const [busy, setBusy] = useState(false)
-  const check = (list) => { setBusy(true); setError(''); importEmployees(list, false).then(setReport).catch((e) => setError(orgErr(e))).finally(() => setBusy(false)) }
-  const onFile = async (file) => { if (!file) return; if (file.size > 2 * 1024 * 1024) return setError('The file is too large (2 MB max).'); const list = parseEmployeeCsv(await file.text()); if (!list.length) return setError('No rows found. Use the template: the first row must contain the column names.'); setRows(list); check(list) }
-  const edit = (i, k, val) => { const n = rows.map((r, x) => (x === i ? { ...r, [k]: val } : r)); setRows(n); setReport(null) }
-  const commit = () => { setBusy(true); importEmployees(rows, true).then((r) => { toast(`${r.count} employee(s) imported.`, { type: 'success' }); onDone?.(r); onClose() }).catch((e) => { setError(orgErr(e)); check(rows) }).finally(() => setBusy(false)) }
-  const bad = report ? report.rows.filter((r) => r.errors.length) : []
-  return (
-    <Modal open onClose={onClose} size="xl" title="Import employees" description="Upload a CSV (export Excel as CSV). Every row is validated — duplicate IDs and emails, departments, teams and leaders — before anything is created."
-      footer={<><Button variant="ghost" onClick={onClose}>Cancel</Button>{rows.length > 0 && !report && <Button loading={busy} variant="secondary" onClick={() => check(rows)}>Re-validate</Button>}<Button loading={busy} disabled={!report || bad.length > 0} onClick={commit}>Import {report ? report.valid : 0} employee{report?.valid === 1 ? '' : 's'}</Button></>}>
-      <div className="space-y-4">
-        {error && <p role="alert" className="rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:bg-rose-900/20 dark:text-rose-300">{error}</p>}
-        <div className="flex flex-wrap items-center gap-2">
-          <input ref={fileRef} type="file" accept=".csv,text/csv" className="hidden" aria-label="Choose CSV file" onChange={(e) => { onFile(e.target.files?.[0]); e.target.value = '' }} />
-          <Button icon={Upload} variant="secondary" onClick={() => fileRef.current?.click()}>Choose CSV file</Button>
-          <Button icon={Download} variant="ghost" onClick={() => downloadBlob(new Blob([IMPORT_TEMPLATE], { type: 'text/csv' }), 'employee-import-template.csv')}>Download template</Button>
-          {report && <span className="text-sm text-ink-500"><b className="text-emerald-600">{report.valid} valid</b> · <b className={bad.length ? 'text-rose-600' : ''}>{bad.length} with errors</b></span>}
-        </div>
-        {rows.length > 0 && (
-          <div className="max-h-[50vh] overflow-auto rounded-xl border border-ink-100 dark:border-ink-800"><table className="w-full min-w-[900px] text-xs"><thead className="sticky top-0 bg-ink-50 dark:bg-ink-800"><tr className="text-left font-semibold uppercase text-ink-500"><th className="px-2 py-2">#</th>{['fullName', 'officialEmail', 'designation', 'department', 'team', 'teamLeader', 'joinDate', 'employeeId'].map((k) => <th key={k} className="px-2">{k}</th>)}<th className="px-2">Result</th></tr></thead>
-            <tbody>{rows.map((r, i) => { const rep = report?.rows[i]; return (
-              <tr key={i} className={`border-t border-ink-100 align-top dark:border-ink-800 ${rep?.errors.length ? 'bg-rose-50/50 dark:bg-rose-900/10' : ''}`}><td className="px-2 py-1.5 text-ink-400">{i + 1}</td>
-                {['fullName', 'officialEmail', 'designation', 'department', 'team', 'teamLeader', 'joinDate', 'employeeId'].map((k) => <td key={k} className="px-1 py-1"><input aria-label={`${k} row ${i + 1}`} className="h-7 w-full min-w-[90px] rounded border border-ink-200 bg-white px-1.5 dark:border-ink-700 dark:bg-ink-900" value={r[k] || ''} onChange={(e) => edit(i, k, e.target.value)} /></td>)}
-                <td className="px-2 py-1.5">{!rep ? '…' : rep.errors.length ? <ul className="text-rose-600">{rep.errors.map((x) => <li key={x}>{x}</li>)}</ul> : <span className="text-emerald-600">OK</span>}</td></tr>) })}</tbody></table></div>
-        )}
-        {rows.length > 0 && !report && !busy && <p className="text-xs text-ink-400">You edited a row — validate again before importing.</p>}
-      </div>
-    </Modal>
-  )
-}
 void orgFields

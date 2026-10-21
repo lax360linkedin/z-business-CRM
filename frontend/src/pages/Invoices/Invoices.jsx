@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import clsx from 'clsx'
-import { Plus, Download, FileText, Wallet, HandCoins, AlertTriangle, Receipt, CheckCircle2, CircleDollarSign, Clock3, CalendarDays, Percent, X, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react'
+import { Plus, FileText, Wallet, HandCoins, AlertTriangle, Receipt, CheckCircle2, CircleDollarSign, Clock3, CalendarDays, Percent, X, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react'
+import { ExportMenu } from '../../components/common/ExportMenu'
+import { describeFilters, documentFromCsv } from '../../utils/exporter'
 import { PageHeader } from '../../components/common/PageHeader'
 import { SearchBar } from '../../components/common/SearchBar'
 import { FilterToggleButton } from '../../components/common/FilterPanel'
@@ -15,7 +17,7 @@ import { useToast } from '../../context/ToastContext'
 import { USERS } from '../../data/users'
 import { INVOICE_STATUS_LIST, PAYMENT_STATUS_LIST, invoiceMetrics, todayKey } from '../../utils/invoiceRules'
 import { formatCurrency, formatDate } from '../../utils/format'
-import { useInvoices, useInvoiceConfig, exportInvoicesCsv, downloadBlob, invErr } from './invoiceClient'
+import { useInvoices, useInvoiceConfig, exportInvoicesCsv, invErr } from './invoiceClient'
 import { InvoiceFormDialog } from './InvoiceFormDialog'
 
 const EMPTY = { status: 'all', pay: 'all', customer: 'all', company: 'all', owner: 'all', deal: 'all', order: 'all', project: 'all', issueFrom: '', issueTo: '', dueFrom: '', dueTo: '', min: '', max: '' }
@@ -107,14 +109,20 @@ export default function Invoices() {
       {label}{sort.key === key ? (sort.dir === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />) : <ArrowUpDown size={11} className="opacity-40" />}
     </button>
   )
-  const doExport = () => exportInvoicesCsv().then((csv) => { downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), `invoices-${todayKey()}.csv`); toast('Invoices exported.', { type: 'success' }) }).catch((e) => toast(invErr(e), { type: 'error' }))
+  // Export: the server's invoice register (it checks the Export right and records the export); only the invoices matching the search, quick view and filters on screen are kept
+  const exportFilters = describeFilters([
+    ['View', quick !== 'all' && (QUICK.find((q) => q[0] === quick)?.[1] || quick)], ['Search', search.trim() && `"${search.trim()}"`], ['Status', f.status], ['Payment', f.pay], ['Customer', f.customer], ['Company', f.company],
+    ['Owner', f.owner !== 'all' && (USERS.find((u) => u.id === f.owner)?.name || f.owner)], ['Deal', f.deal], ['Sales order', f.order], ['Project', f.project], ['Issued from', f.issueFrom], ['Issued to', f.issueTo],
+    ['Due from', f.dueFrom], ['Due to', f.dueTo], ['Amount from', f.min], ['Amount to', f.max],
+  ])
+  const exportDoc = async (_format, ctx) => documentFromCsv({ title: 'Invoices', csv: await exportInvoicesCsv(), keep: new Set(filtered.map((i) => i.number)), filters: exportFilters, ...ctx })
 
   if (error) return <EmptyState icon={AlertTriangle} title="Couldn’t load invoices" description={error} action={<Button variant="secondary" onClick={reload}>Try again</Button>} />
 
   return (
     <div>
       <PageHeader title="Invoices" description="Billing and collections — raised from confirmed sales orders, tracked through every payment."
-        actions={<>{perms.export && <Button variant="secondary" icon={Download} onClick={doExport}>Export</Button>}{perms.create && <Button icon={Plus} onClick={() => { setPreset(null); setFormOpen(true) }}>New invoice</Button>}</>} />
+        actions={<><ExportMenu title="Invoices" noun="invoice" permission={perms.export} getDocument={exportDoc} />{perms.create && <Button icon={Plus} onClick={() => { setPreset(null); setFormOpen(true) }}>New invoice</Button>}</>} />
 
       {!invoices ? <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-5">{Array.from({ length: 10 }).map((_, i) => <CardSkeleton key={i} className="h-20" />)}</div> : (
         <>
@@ -177,11 +185,11 @@ export default function Invoices() {
       ) : (
         <>
           <div role="table" className="overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-card dark:border-ink-800 dark:bg-ink-900">
-            <div role="row" className="hidden grid-cols-[1.6fr_1.2fr_1fr_6.5rem_6.5rem_6.5rem_6.5rem_7rem] gap-3 border-b border-ink-100 bg-ink-50/60 px-4 py-2.5 text-xs font-semibold text-ink-500 lg:grid dark:border-ink-800 dark:bg-ink-800/40">
+            <div role="row" className="hidden grid-cols-[minmax(0,1.6fr)_minmax(0,1.2fr)_minmax(0,1fr)_6.5rem_6.5rem_6.5rem_6.5rem_7rem] gap-3 border-b border-ink-100 bg-ink-50/60 px-4 py-2.5 text-xs font-semibold text-ink-500 lg:grid dark:border-ink-800 dark:bg-ink-800/40">
               {head('number', 'Invoice')}<span className="uppercase tracking-wide">Linked to</span><span className="uppercase tracking-wide">Owner</span>{head('issueDate', 'Date')}{head('dueDate', 'Due')}{head('amount', 'Total', 'justify-end w-full')}{head('balance', 'Balance', 'justify-end w-full')}{head('status', 'Status')}
             </div>
             {rows.map((i) => (
-              <div key={i.id} role="row" tabIndex={0} onClick={() => navigate(`/invoices/${i.id}`)} onKeyDown={(e) => e.key === 'Enter' && navigate(`/invoices/${i.id}`)} className="grid cursor-pointer grid-cols-1 items-center gap-1.5 border-b border-ink-50 px-4 py-3 text-sm last:border-0 hover:bg-ink-50/60 lg:grid-cols-[1.6fr_1.2fr_1fr_6.5rem_6.5rem_6.5rem_6.5rem_7rem] lg:gap-3 dark:border-ink-800/60 dark:hover:bg-ink-800/30">
+              <div key={i.id} role="row" tabIndex={0} onClick={() => navigate(`/invoices/${i.id}`)} onKeyDown={(e) => e.key === 'Enter' && navigate(`/invoices/${i.id}`)} className="grid cursor-pointer grid-cols-1 items-center gap-1.5 border-b border-ink-50 px-4 py-3 text-sm last:border-0 hover:bg-ink-50/60 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1.2fr)_minmax(0,1fr)_6.5rem_6.5rem_6.5rem_6.5rem_7rem] lg:gap-3 dark:border-ink-800/60 dark:hover:bg-ink-800/30">
                 <div className="min-w-0"><p className="truncate font-medium text-ink-900 dark:text-ink-50">{i.number}</p><p className="truncate text-xs text-ink-400">{i.customerName}{i.companyName && i.companyName !== i.customerName ? ` · ${i.companyName}` : ''}</p></div>
                 <div className="min-w-0 truncate text-xs text-ink-500">{i.salesOrderNumber || '—'}{i.dealName ? ` · ${i.dealName}` : ''}</div>
                 <span className="flex items-center gap-1.5 truncate text-xs text-ink-600 dark:text-ink-300"><Avatar name={i.ownerName} size="xs" />{i.ownerName}</span>

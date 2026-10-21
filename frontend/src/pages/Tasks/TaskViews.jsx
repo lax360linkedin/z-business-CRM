@@ -71,9 +71,9 @@ function CheckBox({ task, run }) {
 export function ListView({ tasks, loading, run, canLog, page, setPage, pageSize = 20 }) {
   const navigate = useNavigate()
   const columns = [
-    { key: 'done', header: '', className: 'w-10 !pr-0', render: (t) => <CheckBox task={t} run={run} /> },
+    { key: 'done', width: 48, header: '', className: 'w-10 !pr-0', render: (t) => <CheckBox task={t} run={run} /> },
     {
-      key: 'title', header: 'Task', render: (t) => (
+      key: 'title', width: 300, header: 'Task', render: (t) => (
         <div className="relative max-w-sm pl-3">
           <span className={clsx('absolute inset-y-0.5 left-0 w-1 rounded-full', priorityBar(t.priority))} />
           <div className="flex items-center gap-2"><span className="font-mono text-[11px] text-ink-400">{t.id}</span><TaskFlags task={t} /></div>
@@ -82,11 +82,11 @@ export function ListView({ tasks, loading, run, canLog, page, setPage, pageSize 
         </div>
       ),
     },
-    { key: 'related', header: 'Related to', render: (t) => <div className="max-w-[14rem] truncate"><RelatedLink type={t.relatedType} id={t.relatedId} name={t.relatedName} /></div> },
-    { key: 'assignees', header: 'Assigned to', render: (t) => <AssigneeStack ids={t.assignees} /> },
-    { key: 'priority', header: 'Priority', render: (t) => <PriorityMark priority={t.priority} /> },
-    { key: 'due', header: 'Due', render: (t) => <DueLabel task={t} /> },
-    { key: 'status', header: 'Status', render: (t) => <StatusSelect task={t} run={run} /> },
+    { key: 'related', width: 220, header: 'Related to', render: (t) => <div className="max-w-[14rem] truncate"><RelatedLink type={t.relatedType} id={t.relatedId} name={t.relatedName} /></div> },
+    { key: 'assignees', width: 150, truncate: false, header: 'Assigned to', render: (t) => <AssigneeStack ids={t.assignees} /> },
+    { key: 'priority', width: 120, header: 'Priority', render: (t) => <PriorityMark priority={t.priority} /> },
+    { key: 'due', width: 150, header: 'Due', render: (t) => <DueLabel task={t} /> },
+    { key: 'status', width: 170, truncate: false, header: 'Status', render: (t) => <StatusSelect task={t} run={run} /> },
     { key: 'actions', header: '', className: 'w-10', render: (t) => <TaskMenu task={t} run={run} canLog={canLog} /> },
   ]
   const totalPages = Math.max(1, Math.ceil(tasks.length / pageSize))
@@ -190,7 +190,7 @@ export function CalendarView({ tasks }) {
   const dayTasks = byDay[selected] || []
   const noDate = tasks.filter((t) => !t.dueDate).length
   return (
-    <div className="grid gap-4 lg:grid-cols-[1fr_20rem]">
+    <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
       <div className="overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-card dark:border-ink-800 dark:bg-ink-900">
         <div className="flex items-center justify-between border-b border-ink-100 px-4 py-3 dark:border-ink-800">
           <h3 className="text-sm font-semibold text-ink-900 dark:text-ink-50">{cursor.toLocaleString('en-IN', { month: 'long', year: 'numeric' })}</h3>

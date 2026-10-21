@@ -310,7 +310,7 @@ export default function QuotationDetail() {
         )}
 
         <div className="mb-8 overflow-hidden rounded-xl border border-ink-100 dark:border-ink-800">
-          <table className="w-full text-sm">
+          <table className="crm-table w-full text-sm">
             <thead>
               <tr className="border-b border-ink-100 bg-ink-50/60 text-left text-xs font-semibold uppercase text-ink-500 dark:border-ink-800 dark:bg-ink-800/40 dark:text-ink-400">
                 <th className="px-4 py-3">Item / Service</th>

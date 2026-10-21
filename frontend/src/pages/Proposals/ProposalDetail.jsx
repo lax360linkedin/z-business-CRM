@@ -258,14 +258,14 @@ export default function ProposalDetail() {
 
           {content.modules.length > 0 && (
             <Card title="Modules / features">
-              <div className="overflow-hidden rounded-xl border border-ink-100 dark:border-ink-800"><table className="w-full text-sm"><tbody>{content.modules.map((m, i) => <tr key={i} className="border-b border-ink-50 last:border-0 dark:border-ink-800/60"><td className="w-1/3 px-4 py-2.5 font-medium text-ink-800 dark:text-ink-100">{m.name}</td><td className="px-4 py-2.5 text-ink-600 dark:text-ink-300">{m.description}</td></tr>)}</tbody></table></div>
+              <div className="overflow-hidden rounded-xl border border-ink-100 dark:border-ink-800"><table className="crm-table w-full text-sm"><tbody>{content.modules.map((m, i) => <tr key={i} className="border-b border-ink-50 last:border-0 dark:border-ink-800/60"><td className="w-1/3 px-4 py-2.5 font-medium text-ink-800 dark:text-ink-100">{m.name}</td><td className="px-4 py-2.5 text-ink-600 dark:text-ink-300">{m.description}</td></tr>)}</tbody></table></div>
             </Card>
           )}
           {content.deliverables.length > 0 && <Card title="Deliverables"><ul className="list-disc space-y-1 pl-5 text-sm text-ink-700 dark:text-ink-200">{content.deliverables.map((d, i) => <li key={i}>{d}</li>)}</ul></Card>}
           {NARRATIVE_SECTIONS.slice(5, 7).map((s) => (content[s.key] ? <Card key={s.key} title={s.label}><Prose text={content[s.key]} /></Card> : null))}
           {content.timeline.length > 0 && (
             <Card title="Project timeline">
-              <div className="overflow-hidden rounded-xl border border-ink-100 dark:border-ink-800"><table className="w-full text-sm"><thead><tr className="border-b border-ink-100 bg-ink-50/60 text-left text-xs font-semibold uppercase text-ink-500 dark:border-ink-800 dark:bg-ink-800/40"><th className="px-4 py-2">Phase</th><th className="px-4 py-2">Activities</th><th className="px-4 py-2">Duration</th></tr></thead><tbody>{content.timeline.map((t, i) => <tr key={i} className="border-b border-ink-50 last:border-0 dark:border-ink-800/60"><td className="px-4 py-2.5 font-medium text-ink-800 dark:text-ink-100">{t.phase}</td><td className="px-4 py-2.5 text-ink-600 dark:text-ink-300">{t.description}</td><td className="px-4 py-2.5 text-ink-500">{t.duration}</td></tr>)}</tbody></table></div>
+              <div className="overflow-hidden rounded-xl border border-ink-100 dark:border-ink-800"><table className="crm-table w-full text-sm"><thead><tr className="border-b border-ink-100 bg-ink-50/60 text-left text-xs font-semibold uppercase text-ink-500 dark:border-ink-800 dark:bg-ink-800/40"><th className="px-4 py-2">Phase</th><th className="px-4 py-2">Activities</th><th className="px-4 py-2">Duration</th></tr></thead><tbody>{content.timeline.map((t, i) => <tr key={i} className="border-b border-ink-50 last:border-0 dark:border-ink-800/60"><td className="px-4 py-2.5 font-medium text-ink-800 dark:text-ink-100">{t.phase}</td><td className="px-4 py-2.5 text-ink-600 dark:text-ink-300">{t.description}</td><td className="px-4 py-2.5 text-ink-500">{t.duration}</td></tr>)}</tbody></table></div>
             </Card>
           )}
           {(content.responsibilities.company || content.responsibilities.client) && (
@@ -275,7 +275,7 @@ export default function ProposalDetail() {
 
           <Card title="Commercial summary" icon={IndianRupee}>
             <div className="overflow-x-auto rounded-xl border border-ink-100 dark:border-ink-800">
-              <table className="w-full min-w-[560px] text-sm">
+              <table className="crm-table w-full min-w-[560px] text-sm">
                 <thead><tr className="border-b border-ink-100 bg-ink-50/60 text-left text-xs font-semibold uppercase text-ink-500 dark:border-ink-800 dark:bg-ink-800/40"><th className="px-4 py-2.5">Item / service</th><th className="px-3 py-2.5 text-right">Qty</th><th className="px-3 py-2.5 text-right">Unit price</th><th className="px-3 py-2.5 text-right">Disc</th><th className="px-4 py-2.5 text-right">Amount</th></tr></thead>
                 <tbody>{content.items.map((it, i) => <tr key={i} className="border-b border-ink-50 last:border-0 dark:border-ink-800/60"><td className="px-4 py-3"><p className="font-medium text-ink-800 dark:text-ink-100">{it.name}{it.productCode && <span className="ml-2 font-mono text-[11px] font-normal text-ink-400">{it.productCode}</span>}</p>{it.description && <p className="text-xs text-ink-400">{it.description}</p>}</td><td className="px-3 py-3 text-right text-ink-600 dark:text-ink-300">{it.qty}</td><td className="px-3 py-3 text-right text-ink-600 dark:text-ink-300">{formatCurrency(it.unitPrice)}</td><td className="px-3 py-3 text-right text-ink-600 dark:text-ink-300">{it.discount}%</td><td className="px-4 py-3 text-right font-medium text-ink-800 dark:text-ink-100">{formatCurrency(calc.lines[i].net)}</td></tr>)}</tbody>
               </table>

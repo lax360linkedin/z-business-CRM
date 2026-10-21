@@ -173,7 +173,7 @@ export default function ExpenseDetail() {
       <Tabs className="mb-5" active={tab} onChange={setTab} tabs={tabs} />
 
       {tab === 'overview' && (
-        <div className="grid gap-5 lg:grid-cols-[1.3fr_1fr]">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
           <div className="min-w-0 space-y-5">
             <Card title="Expense details"><dl className="divide-y divide-ink-50 dark:divide-ink-800/60">
               <KV k="Expense number"><span className="font-mono">{x.number}</span></KV><KV k="Type">{KIND_LABEL[x.kind]}</KV><KV k="Category">{x.categoryName}</KV><KV k="Expense date">{formatDate(x.date)}</KV><KV k="Status">{x.status}</KV><KV k="Payment status">{x.paymentStatus}</KV>
@@ -200,7 +200,7 @@ export default function ExpenseDetail() {
       {tab === 'payments' && (
         <Card title={emp ? 'Reimbursements' : 'Payments to the vendor / supplier'} action={p.pay ? <Button size="sm" icon={Banknote} onClick={() => setDlg('pay')}>{emp ? 'Reimburse' : 'Record payment'}</Button> : null}>
           {!x.payments.length ? <EmptyState icon={Banknote} title={emp ? 'Not reimbursed yet' : 'No payment recorded'} description="Only an approved expense can be paid. These are business cost payments — separate from customer payments." /> : (
-            <div className="overflow-x-auto"><table className="w-full min-w-[560px] text-sm"><thead><tr className="border-b border-ink-100 text-left text-xs font-semibold uppercase text-ink-400 dark:border-ink-800"><th className="pb-2">Payment</th><th className="pb-2">Date</th><th className="pb-2">Method</th><th className="pb-2">Reference</th><th className="pb-2">Recorded by</th><th className="pb-2 text-right">Amount</th><th className="pb-2 text-right">Balance after</th></tr></thead>
+            <div className="overflow-x-auto"><table className="crm-table w-full min-w-[560px] text-sm"><thead><tr className="border-b border-ink-100 text-left text-xs font-semibold uppercase text-ink-400 dark:border-ink-800"><th className="pb-2">Payment</th><th className="pb-2">Date</th><th className="pb-2">Method</th><th className="pb-2">Reference</th><th className="pb-2">Recorded by</th><th className="pb-2 text-right">Amount</th><th className="pb-2 text-right">Balance after</th></tr></thead>
               <tbody>{x.payments.map((y) => <tr key={y.id} className="border-b border-ink-50 dark:border-ink-800/60"><td className="py-2.5 font-mono text-xs">{y.number}</td><td>{formatDate(y.date)}</td><td>{y.method}</td><td className="font-mono text-xs">{y.reference || '—'}</td><td>{y.byName}</td><td className="text-right font-medium">{money(y.amount)}</td><td className="text-right">{money(y.balanceAfter)}</td></tr>)}</tbody></table></div>
           )}
         </Card>

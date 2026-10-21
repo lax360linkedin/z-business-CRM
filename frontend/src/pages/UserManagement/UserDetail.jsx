@@ -203,12 +203,12 @@ export default function UserDetail() {
   }
 
   if (!account) {
-    return <EmptyState title="User not found" description="This user account may have been removed." action={<Button variant="secondary" icon={ArrowLeft} onClick={() => navigate('/user-management')}>Back to User Management</Button>} />
+    return <EmptyState title="User not found" description="This user account may have been removed." action={<Button variant="secondary" icon={ArrowLeft} onClick={() => navigate('/administration/users')}>Back to User Management</Button>} />
   }
 
   return (
     <div>
-      <Breadcrumbs items={[{ label: 'User Management', href: '/user-management' }, { label: account.name }]} />
+      <Breadcrumbs items={[{ label: 'Administration', href: '/administration' }, { label: 'User Management', href: '/administration/users' }, { label: account.name }]} />
 
       <div className="mb-5 flex flex-wrap items-start justify-between gap-4 rounded-2xl border border-ink-100 bg-white p-6 shadow-card dark:border-ink-800 dark:bg-ink-900">
         <div className="flex items-center gap-4">
@@ -346,7 +346,7 @@ export default function UserDetail() {
 
       {activeTab === 'Login Activity' && (
         <div className="overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-card dark:border-ink-800 dark:bg-ink-900">
-          <table className="w-full border-collapse text-sm">
+          <table className="crm-table w-full border-collapse text-sm">
             <thead>
               <tr className="border-b border-ink-100 bg-ink-50/60 dark:border-ink-800 dark:bg-ink-800/40">
                 {['Date', 'Time', 'Event', 'IP Address', 'Result'].map((h) => (
@@ -511,7 +511,7 @@ export default function UserDetail() {
         ]}
       />
 
-      {deleteOpen && <DeletePersonDialog employeeId={account.employeeId} accountId={account.id} name={account.name} onClose={() => setDeleteOpen(false)} onDone={() => navigate('/user-management', { replace: true })} />}
+      {deleteOpen && <DeletePersonDialog employeeId={account.employeeId} accountId={account.id} name={account.name} onClose={() => setDeleteOpen(false)} onDone={() => navigate('/administration/users', { replace: true })} />}
 
       {canSeeCredentials && (
         <ChangePasswordModal open={changePwOpen} onClose={() => setChangePwOpen(false)} onSubmit={submitChangePassword} loading={changingPw} />

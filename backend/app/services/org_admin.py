@@ -261,13 +261,19 @@ def import_employees(db: Session, p: Principal, req: dict) -> tuple[int, dict]:
     seen_id: set[str] = set()
     seen_mail: set[str] = set()
     out = []
+    from app.services import imports
+
+    norm_cache: dict = {}
 
     def find_person(v):
         n = _norm(v)
         return next((e for e in emps if n in (_norm(e.id), _norm(e.full_name), _norm(e.official_email))), None) if n else None
 
-    for i, r in enumerate(rows, start=1):
-        errors: list[str] = []
+    for i, raw_row in enumerate(rows, start=1):
+        # the same cleaning the Excel template promises: values matched to the allowed lists, dates in any common format, emails / phones / lengths checked
+        bad: set[str] = set()
+        clean, errors = imports.normalise_row(db, p, imports.EMPLOYEES, raw_row, norm_cache, quiet=frozenset({"department", "status"}), bad=bad)
+        r = {**raw_row, **clean}
         dept = depts.get(_norm(r.get("department")))
         team = next((t for t in teams if dept and t.department_id == dept.id and not t.parent_team_id and _norm(t.name) == _norm(r.get("team"))), None) if r.get("team") else None
         if dept is None:
@@ -320,11 +326,11 @@ def import_employees(db: Session, p: Principal, req: dict) -> tuple[int, dict]:
         try:
             check_employee(db, probe, {"departmentId", "teamId", "reportsTo"})
         except ApiError as exc:
-            for msg in (exc.fields or {}).values():
-                if msg not in errors and not re.search(r"department|team|manager", msg, re.I):
+            for field_key, msg in (exc.fields or {}).items():
+                if field_key not in bad and msg not in errors and not re.search(r"department|team|manager", msg, re.I):  # (a field already refused above is not reported a second time)
                     errors.append(msg)
         db.expunge(probe) if probe in db else None
-        out.append({"row": i, "errors": errors, "data": None if errors else {"probe": probe, "id": idv or None, "status": status, "branch": branch_name, "raw": r}})
+        out.append({"row": int(raw_row.get("_row") or i), "errors": errors, "data": None if errors else {"probe": probe, "id": idv or None, "status": status, "branch": branch_name, "raw": r}})
     invalid_rows = sum(1 for x in out if x["errors"])
     if not req.get("commit"):
         return 200, {"rows": [{"row": x["row"], "errors": x["errors"]} for x in out], "valid": len(out) - invalid_rows, "invalid": invalid_rows}

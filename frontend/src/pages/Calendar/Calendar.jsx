@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import clsx from 'clsx'
-import { ChevronLeft, ChevronRight, Plus, X, AlertTriangle, RefreshCw } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Plus, X, AlertTriangle } from 'lucide-react'
 import { PageHeader } from '../../components/common/PageHeader'
 import { Tabs } from '../../components/common/Tabs'
 import { Button } from '../../components/common/Button'
@@ -144,7 +144,7 @@ export default function CalendarPage() {
       <PageHeader
         title="Calendar"
         description="Tasks, meetings, follow-ups, reminders and due dates — each one lives on its CRM record; the calendar just shows them."
-        actions={<><Button variant="secondary" icon={RefreshCw} onClick={() => { setLoading(true); load() }} aria-label="Refresh calendar">Refresh</Button><Button icon={Plus} onClick={() => newOn(view === 'day' ? key(cursor) : todayKey)}>New Event</Button></>}
+        actions={<><Button icon={Plus} onClick={() => newOn(view === 'day' ? key(cursor) : todayKey)}>New Event</Button></>}
       />
 
       {recordFilter && (

@@ -2,6 +2,8 @@ import { useOptions, asChoices } from '../../hooks/useOptions'
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Trash2, ExternalLink } from 'lucide-react'
+import { ExportMenu } from '../../components/common/ExportMenu'
+import { filterText } from '../../utils/exporter'
 import { PageHeader } from '../../components/common/PageHeader'
 import { SearchBar } from '../../components/common/SearchBar'
 import { FilterPanel, FilterToggleButton } from '../../components/common/FilterPanel'
@@ -45,9 +47,17 @@ export default function Companies() {
     { key: 'status', label: 'Statuses', options: COMPANY_STATUSES.map((s) => ({ value: s, label: s })) },
   ]
 
+  // Export: every company that matches the search and filters on screen
+  const exportColumns = [
+    { label: 'Company ID', value: 'id' }, { label: 'Company', value: 'name' }, { label: 'Industry', value: 'industry' }, { label: 'Contact person', value: 'contactPerson' }, { label: 'Email', value: 'email' },
+    { label: 'Phone', value: 'phone' }, { label: 'Website', value: 'website' }, { label: 'City', value: 'city' }, { label: 'GSTIN', value: 'gstin' },
+    { label: 'Revenue', value: (c) => Number(c.revenue) || 0, align: 'right' }, { label: 'Status', value: 'status' }, { label: 'Branch', value: 'branch' }, { label: 'Created', value: 'createdDate' },
+  ]
+  const exportFilters = filterText({ search: crud.search, values: crud.filters, defs: filterDefs })
+
   const columns = [
     {
-      key: 'name', header: 'Company', sortable: true,
+      key: 'name', width: 240, header: 'Company', sortable: true,
       render: (row) => (
         <div className="flex items-center gap-2.5">
           <Avatar name={row.name} size="sm" />
@@ -58,22 +68,22 @@ export default function Companies() {
         </div>
       ),
     },
-    { key: 'industry', header: 'Industry', sortable: true },
-    { key: 'contactPerson', header: 'Contact Person' },
-    { key: 'email', header: 'Email' },
-    { key: 'phone', header: 'Phone' },
+    { key: 'industry', width: 160, header: 'Industry', sortable: true },
+    { key: 'contactPerson', width: 180, header: 'Contact Person' },
+    { key: 'email', width: 240, header: 'Email' },
+    { key: 'phone', width: 150, header: 'Phone' },
     {
-      key: 'website', header: 'Website',
+      key: 'website', width: 200, header: 'Website',
       render: (row) => (
         <a href={`https://${row.website}`} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1 text-brand-600 hover:underline dark:text-brand-400">
           {row.website} <ExternalLink size={11} />
         </a>
       ),
     },
-    { key: 'activeDeals', header: 'Active Deals', render: (row) => dealsByCompany(row.id).filter((d) => !CLOSED_DEAL_STAGES.includes(d.stage)).length },
-    { key: 'projectsCount', header: 'Projects', render: (row) => { const cust = getCustomerByCompanyId(row.id); return cust ? projectsByCustomer(cust.id).length : 0 } },
-    { key: 'revenue', header: 'Revenue', sortable: true, render: (row) => formatCurrency(row.revenue, { compact: true }) },
-    { key: 'status', header: 'Status', render: (row) => <StatusBadge status={row.status} /> },
+    { key: 'activeDeals', width: 130, header: 'Active Deals', render: (row) => dealsByCompany(row.id).filter((d) => !CLOSED_DEAL_STAGES.includes(d.stage)).length },
+    { key: 'projectsCount', width: 120, header: 'Projects', render: (row) => { const cust = getCustomerByCompanyId(row.id); return cust ? projectsByCustomer(cust.id).length : 0 } },
+    { key: 'revenue', width: 130, header: 'Revenue', sortable: true, render: (row) => formatCurrency(row.revenue, { compact: true }) },
+    { key: 'status', width: 130, header: 'Status', render: (row) => <StatusBadge status={row.status} /> },
     {
       key: 'actions', header: '', headerClassName: 'w-10',
       render: (row) => (
@@ -109,7 +119,7 @@ export default function Companies() {
       <PageHeader
         title="Companies"
         description="Manage company and account records across your business."
-        actions={<Button icon={Plus} onClick={() => setCreateOpen(true)}>Add Company</Button>}
+        actions={<><ExportMenu title="Companies" noun="company" columns={exportColumns} rows={() => crud.allFiltered} filters={exportFilters} /><Button icon={Plus} onClick={() => setCreateOpen(true)}>Add Company</Button></>}
       />
 
       <div className="mb-4 flex flex-wrap items-center gap-2.5">

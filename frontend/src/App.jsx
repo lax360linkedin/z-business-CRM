@@ -1,4 +1,4 @@
-import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom'
 import { ThemeProvider } from './context/ThemeContext'
 import { ToastProvider } from './context/ToastContext'
 import { AuthProvider } from './context/AuthContext'
@@ -83,11 +83,20 @@ const DepartmentDetail = lazyPage(() => import('./pages/Employees/OrgDetails').t
 const TeamDetail = lazyPage(() => import('./pages/Employees/OrgDetails').then((m) => ({ default: m.TeamDetail })))
 const RolesPermissions = lazyPage(() => import('./pages/RolesPermissions/RolesPermissions'))
 const Settings = lazyPage(() => import('./pages/Settings/Settings'))
+const Administration = lazyPage(() => import('./pages/Administration/Administration'))
 import NotFound from './pages/NotFound/NotFound'
 
 // every page is its own chunk, fetched when first opened (and fetched ahead of time: see routes/lazyPage.js) - the app shell no longer carries all 60+ screens
-registerPreloads({ Branches, ChangePassword, Profile, Dashboard, Leads, LeadDetail, MeetingJoin, Enquiries, EnquiryDetail, Contacts, ContactDetail, Companies, CompanyDetail, Customers, CustomerDetail, Deals, DealDetail, Pipeline, Quotations, QuotationDetail, QuotationTemplates, QuotationTemplateEditor, SalesOrders, SalesOrderDetail, SalesOrderForm, Proposals, ProposalDetail, ProposalForm, ProposalTemplates, ProposalTemplateEditor, Activities, Tasks, TaskDetail, TaskSettings, CalendarPage, Products, ProductDetail, Projects, ProjectDetail, Contracts, ContractDetail, ContractTemplatesPage, Documents, PaymentDetail, DocumentDetail, Invoices, InvoiceDetail, Payments, Expenses, ExpenseDetail, Campaigns, CampaignDetail, LeadSourceDetail, LeadSources, MarketingAnalytics, CommunicationEmail, CommunicationWhatsApp, CommunicationHistory, Tickets, TicketDetail, Reports, AIInsights, Notifications, Employees, UserManagement, UserDetail, EmployeeDetail, DepartmentDetail, TeamDetail, RolesPermissions, Settings })
-registerPaths({ '/login': Login, '/forgot-password': ForgotPassword, '/dashboard': Dashboard, '/leads': Leads, '/enquiries': Enquiries, '/contacts': Contacts, '/companies': Companies, '/customers': Customers, '/deals': Deals, '/pipeline': Pipeline, '/quotations': Quotations, '/quotation-templates': QuotationTemplates, '/sales-orders': SalesOrders, '/sales-orders/new': SalesOrderForm, '/proposals': Proposals, '/proposals/new': ProposalForm, '/proposal-templates': ProposalTemplates, '/activities': Activities, '/tasks': Tasks, '/tasks/settings': TaskSettings, '/calendar': CalendarPage, '/products': Products, '/projects': Projects, '/contracts': Contracts, '/contracts/templates': ContractTemplatesPage, '/documents': Documents, '/invoices': Invoices, '/payments': Payments, '/expenses': Expenses, '/campaigns': Campaigns, '/lead-sources': LeadSources, '/marketing-analytics': MarketingAnalytics, '/communication/email': CommunicationEmail, '/communication/whatsapp': CommunicationWhatsApp, '/communication/history': CommunicationHistory, '/tickets': Tickets, '/ai-insights': AIInsights, '/notifications': Notifications, '/employees': Employees, '/branches': Branches, '/user-management': UserManagement, '/teams': Employees, '/roles-permissions': RolesPermissions, '/change-password': ChangePassword, '/profile': Profile })
+registerPreloads({ Branches, ChangePassword, Profile, Dashboard, Leads, LeadDetail, MeetingJoin, Enquiries, EnquiryDetail, Contacts, ContactDetail, Companies, CompanyDetail, Customers, CustomerDetail, Deals, DealDetail, Pipeline, Quotations, QuotationDetail, QuotationTemplates, QuotationTemplateEditor, SalesOrders, SalesOrderDetail, SalesOrderForm, Proposals, ProposalDetail, ProposalForm, ProposalTemplates, ProposalTemplateEditor, Activities, Tasks, TaskDetail, TaskSettings, CalendarPage, Products, ProductDetail, Projects, ProjectDetail, Contracts, ContractDetail, ContractTemplatesPage, Documents, PaymentDetail, DocumentDetail, Invoices, InvoiceDetail, Payments, Expenses, ExpenseDetail, Campaigns, CampaignDetail, LeadSourceDetail, LeadSources, MarketingAnalytics, CommunicationEmail, CommunicationWhatsApp, CommunicationHistory, Tickets, TicketDetail, Reports, AIInsights, Notifications, Employees, UserManagement, UserDetail, EmployeeDetail, DepartmentDetail, TeamDetail, RolesPermissions, Settings, Administration })
+registerPaths({ '/login': Login, '/forgot-password': ForgotPassword, '/dashboard': Dashboard, '/leads': Leads, '/enquiries': Enquiries, '/contacts': Contacts, '/companies': Companies, '/customers': Customers, '/deals': Deals, '/pipeline': Pipeline, '/quotations': Quotations, '/quotation-templates': QuotationTemplates, '/sales-orders': SalesOrders, '/sales-orders/new': SalesOrderForm, '/proposals': Proposals, '/proposals/new': ProposalForm, '/proposal-templates': ProposalTemplates, '/activities': Activities, '/tasks': Tasks, '/tasks/settings': TaskSettings, '/calendar': CalendarPage, '/products': Products, '/projects': Projects, '/contracts': Contracts, '/contracts/templates': ContractTemplatesPage, '/documents': Documents, '/invoices': Invoices, '/payments': Payments, '/expenses': Expenses, '/campaigns': Campaigns, '/lead-sources': LeadSources, '/marketing-analytics': MarketingAnalytics, '/communication/email': CommunicationEmail, '/communication/whatsapp': CommunicationWhatsApp, '/communication/history': CommunicationHistory, '/tickets': Tickets, '/ai-insights': AIInsights, '/notifications': Notifications, '/employees': Employees, '/administration': Administration, '/administration/branches': Branches, '/administration/users': UserManagement, '/teams': Employees, '/administration/roles-permissions': RolesPermissions, '/change-password': ChangePassword, '/profile': Profile })
+
+// pages that moved into Administration: old address -> new address (`:id` is carried over, and so is the query string)
+const MOVED = [['/branches', '/administration/branches'], ['/user-management', '/administration/users'], ['/user-management/:id', '/administration/users/:id'], ['/roles-permissions', '/administration/roles-permissions']]
+function MovedTo({ to }) {
+  const { id } = useParams()
+  const { search } = useLocation()
+  return <Navigate to={`${id ? to.replace(':id', encodeURIComponent(id)) : to}${search}`} replace />
+}
 
 function App() {
   return (
@@ -183,12 +192,18 @@ function App() {
                     <Route path="/employees/:id" element={<EmployeeDetail />} />
                     <Route path="/departments/:id" element={<DepartmentDetail />} />
                     <Route path="/teams/:id" element={<TeamDetail />} />
-                    <Route path="/branches" element={<Branches />} />
-                    <Route path="/user-management" element={<UserManagement />} />
-                    <Route path="/user-management/:id" element={<UserDetail />} />
                     <Route path="/teams" element={<Employees />} />
-                    <Route path="/roles-permissions" element={<RolesPermissions />} />
 
+                    {/* Administration: system configuration, users and access, branches. The specific pages come first; every other /administration/... address is a configuration page. */}
+                    <Route path="/administration/branches" element={<Branches />} />
+                    <Route path="/administration/users" element={<UserManagement />} />
+                    <Route path="/administration/users/:id" element={<UserDetail />} />
+                    <Route path="/administration/roles-permissions" element={<RolesPermissions />} />
+                    <Route path="/administration/*" element={<Administration />} />
+                    {/* the old addresses (bookmarks, links, saved notifications) lead to the same pages */}
+                    {MOVED.map(([from, to]) => <Route key={from} path={from} element={<MovedTo to={to} />} />)}
+
+                    {/* Settings: the person's own preferences (the old /settings/<configuration page> addresses are forwarded to Administration inside it) */}
                     <Route path="/settings/*" element={<Settings />} />
 
                     <Route path="/change-password" element={<ChangePassword />} />

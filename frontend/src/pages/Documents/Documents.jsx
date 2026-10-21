@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import { UploadCloud, FileStack, Clock3, UserRound, Share2, ShieldAlert, CalendarClock, Archive, Trash2, LayoutList, LayoutGrid, FolderTree, Eye, Download, FolderPlus, Settings2, X, Bookmark, AlertTriangle, FolderOpen, Layers } from 'lucide-react'
+import { ExportMenu } from '../../components/common/ExportMenu'
+import { describeFilters } from '../../utils/exporter'
 import { PageHeader } from '../../components/common/PageHeader'
 import { SearchBar } from '../../components/common/SearchBar'
 import { FilterToggleButton } from '../../components/common/FilterPanel'
@@ -133,6 +135,13 @@ export default function Documents() {
     ['Archived', m.archived, Archive, 'ink', () => setQuick('archived')], ['Storage used', sizeLabel(m.bytes), FolderOpen, 'ink'],
   ]
   const activeFilters = Object.entries(f).filter(([k, v]) => v !== EMPTY[k]).length
+  // Export: the register of the documents that match the quick view, search, filters and folder on screen (their details, not the files); only documents you may open are listed
+  const exportColumns = [
+    { label: 'Document ID', value: 'id' }, { label: 'Name', value: 'name' }, { label: 'Category', value: 'category' }, { label: 'File type', value: 'fileType' }, { label: 'Size (KB)', value: (d) => Math.round((Number(d.sizeBytes) || 0) / 102.4) / 10, align: 'right' },
+    { label: 'Linked to', value: (d) => d.refs?.Customer || d.relatedTo || '' }, { label: 'Source', value: (d) => sourceLabel(d) }, { label: 'Visibility', value: 'visibility' }, { label: 'Status', value: 'status' },
+    { label: 'Uploaded by', value: 'uploaderName' }, { label: 'Uploaded', value: 'uploadedDate' }, { label: 'Last updated', value: (d) => String(d.updatedAt || '').slice(0, 10) },
+  ]
+  const exportFilters = describeFilters([['View', quick !== 'all' && quick], ['Search', search.trim() && `"${search.trim()}"`], ['Folder', view === 'folders' && folder], ...Object.entries(f).filter(([k, v]) => v !== EMPTY[k]).map(([k, v]) => [k, v])])
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const cur = Math.min(page, totalPages)
   const pageRows = filtered.slice((cur - 1) * PAGE_SIZE, cur * PAGE_SIZE)
@@ -152,7 +161,7 @@ export default function Documents() {
   if (error) return <EmptyState icon={AlertTriangle} title="Couldn’t load documents" description={error} action={<Button variant="secondary" onClick={reload}>Try again</Button>} />
 
   const row = (d) => (
-    <div key={d.id} role="row" tabIndex={0} onClick={() => navigate(`/documents/${d.id}`)} onKeyDown={(e) => e.key === 'Enter' && navigate(`/documents/${d.id}`)} className="grid cursor-pointer grid-cols-[auto_1fr_auto] items-center gap-3 border-b border-ink-50 px-4 py-3 text-sm last:border-0 hover:bg-ink-50/60 lg:grid-cols-[auto_2.2fr_1.2fr_1.3fr_6rem_6.5rem_auto] dark:border-ink-800/60 dark:hover:bg-ink-800/30">
+    <div key={d.id} role="row" tabIndex={0} onClick={() => navigate(`/documents/${d.id}`)} onKeyDown={(e) => e.key === 'Enter' && navigate(`/documents/${d.id}`)} className="grid cursor-pointer grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-ink-50 px-4 py-3 text-sm last:border-0 hover:bg-ink-50/60 lg:grid-cols-[auto_minmax(0,2.2fr)_minmax(0,1.2fr)_minmax(0,1.3fr)_6rem_6.5rem_auto] dark:border-ink-800/60 dark:hover:bg-ink-800/30">
       <FileTile ext={d.fileType} />
       <div className="min-w-0">
         <div className="flex items-center gap-2"><p className="truncate font-medium text-ink-900 dark:text-ink-50">{d.name}</p><VersionTag doc={d} />{d.status !== 'Active' && <DocStatus status={d.status} />}</div>
@@ -184,7 +193,8 @@ export default function Documents() {
     <div>
       <PageHeader title="Documents" description="The central, access-controlled repository for every file in the CRM — each one linked to the customer, deal, contract or project it belongs to."
         actions={<>
-          {has('manageCategories') && <Button variant="secondary" icon={Settings2} onClick={() => navigate('/settings/modules/documents')}>Settings</Button>}
+          <ExportMenu title="Documents" noun="document" columns={exportColumns} rows={() => filtered} filters={exportFilters} />
+          {has('manageCategories') && <Button variant="secondary" icon={Settings2} onClick={() => navigate('/administration/modules/documents')}>Settings</Button>}
           {has('createFolders') && <Button variant="secondary" icon={FolderPlus} onClick={() => setFolderModal(true)}>New folder</Button>}
           {canUpload && <Button icon={uploadOpen ? X : UploadCloud} onClick={() => setUploadOpen((o) => !o)}>{uploadOpen ? 'Close upload' : 'Upload'}</Button>}
         </>} />
@@ -254,7 +264,7 @@ export default function Documents() {
         </div>
       )}
 
-      <div className={clsx(view === 'folders' && 'grid gap-4 lg:grid-cols-[14rem_1fr]')}>
+      <div className={clsx(view === 'folders' && 'grid gap-4 lg:grid-cols-[14rem_minmax(0,1fr)]')}>
         {view === 'folders' && (
           <nav aria-label="Folders" className="h-fit rounded-2xl border border-ink-100 bg-white p-2 shadow-card dark:border-ink-800 dark:bg-ink-900">
             <button type="button" onClick={() => setFolder('')} className={clsx('flex w-full items-center justify-between rounded-lg px-3 py-2 text-sm', !folder ? 'bg-brand-600 text-white' : 'text-ink-700 hover:bg-ink-50 dark:text-ink-200 dark:hover:bg-ink-800')}><span className="flex items-center gap-2"><Layers size={14} />All</span><span className="text-xs opacity-80">{counts(() => true)}</span></button>
@@ -276,7 +286,7 @@ export default function Documents() {
             <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-4">{pageRows.map(card)}</div>
           ) : (
             <div role="table" className="overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-card dark:border-ink-800 dark:bg-ink-900">
-              <div role="row" className="hidden grid-cols-[auto_2.2fr_1.2fr_1.3fr_6rem_6.5rem_auto] gap-3 border-b border-ink-100 bg-ink-50/60 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-ink-500 lg:grid dark:border-ink-800 dark:bg-ink-800/40"><span className="w-10" /><span>Document</span><span>Linked to</span><span>Customer</span><span>Access</span><span>Updated</span><span className="w-24" /></div>
+              <div role="row" className="hidden grid-cols-[auto_minmax(0,2.2fr)_minmax(0,1.2fr)_minmax(0,1.3fr)_6rem_6.5rem_auto] gap-3 border-b border-ink-100 bg-ink-50/60 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-ink-500 lg:grid dark:border-ink-800 dark:bg-ink-800/40"><span className="w-10" /><span>Document</span><span>Linked to</span><span>Customer</span><span>Access</span><span>Updated</span><span className="w-24" /></div>
               {pageRows.map(row)}
             </div>
           )}

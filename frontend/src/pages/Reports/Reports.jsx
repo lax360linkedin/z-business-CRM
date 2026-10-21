@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid,
@@ -16,6 +16,8 @@ import { Avatar } from '../../components/common/Avatar'
 import { CardSkeleton, Skeleton } from '../../components/common/LoadingSkeleton'
 import { EmptyState } from '../../components/common/EmptyState'
 import { Button } from '../../components/common/Button'
+import { PageExport } from '../../components/common/PageExport'
+import { useRefreshHandler } from '../../api/refresh'
 import { useAuth } from '../../context/AuthContext'
 import { api } from '../../api/mockServer'
 import { useMonthlyPerformance } from '../../hooks/useMonthlyPerformance'
@@ -71,11 +73,13 @@ function useReportData(type) {
   const needs = REPORT_NEEDS[type]
   const [state, setState] = useState({ data: null, loading: true, error: '', blocked: [] })
   const [attempt, setAttempt] = useState(0)
+  const quiet = useRef(false) // a refresh keeps the report on screen while the new figures load
 
   useEffect(() => {
     if (!needs) { setState({ data: {}, loading: false, error: '', blocked: [] }); return undefined }
     let alive = true
-    setState((cur) => ({ ...cur, loading: true, error: '' }))
+    if (!quiet.current) setState((cur) => ({ ...cur, loading: true, error: '' }))
+    quiet.current = false
     const entries = Object.entries(needs)
     const blocked = entries.filter(([, label]) => !hasPermission(label, 'view')).map(([, label]) => label)
     const wanted = entries.filter(([, label]) => hasPermission(label, 'view'))
@@ -95,12 +99,14 @@ function useReportData(type) {
     return () => { alive = false }
   }, [type, attempt, hasPermission]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  useRefreshHandler(() => { quiet.current = true; setAttempt((n) => n + 1) })
   return { ...state, retry: () => setAttempt((n) => n + 1) }
 }
 
 export default function Reports() {
   const { type } = useParams()
   const { data, loading, error, blocked, retry } = useReportData(type)
+  const root = useRef(null) // the report as it is on screen is what gets exported: its key figures, charts and tables, for the branch and role of the person exporting
 
   if (error) {
     return (
@@ -126,8 +132,8 @@ export default function Reports() {
   }
 
   return (
-    <div>
-      <PageHeader title={TITLES[type] || 'Reports'} description={DESCRIPTIONS[type] || 'Business performance reporting.'} />
+    <div ref={root} data-report-root>
+      <PageHeader title={TITLES[type] || 'Reports'} description={DESCRIPTIONS[type] || 'Business performance reporting.'} actions={TITLES[type] ? <PageExport rootRef={root} title={TITLES[type]} subtitle={DESCRIPTIONS[type]} /> : null} />
       {blocked.length > 0 && (
         <p role="status" className="mb-4 rounded-xl bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
           Your role cannot open {blocked.join(' and ')}, so the figures that depend on {blocked.length > 1 ? 'them are' : 'it is'} left empty here.
@@ -391,7 +397,7 @@ function LeadsReport({ data }) {
           </ResponsiveContainer>
         </ChartCard>
         <ChartCard title="Source Performance" subtitle="Leads → Qualified → Converted → Revenue by channel, with source-wise Unqualified/Lost" className="lg:col-span-2" bodyClassName="max-h-[320px] overflow-y-auto scrollbar-thin">
-          <table className="w-full text-sm">
+          <table className="crm-table w-full text-sm">
             <thead>
               <tr className="border-b border-ink-100 text-left text-xs font-semibold uppercase tracking-wide text-ink-500 dark:border-ink-800 dark:text-ink-400">
                 <th className="py-2">Source</th>
@@ -427,7 +433,7 @@ function LeadsReport({ data }) {
           {unqualifiedReasons.length === 0 ? (
             <p className="py-8 text-center text-sm text-ink-400">No unqualified leads yet.</p>
           ) : (
-            <table className="w-full text-sm">
+            <table className="crm-table w-full text-sm">
               <tbody>
                 {unqualifiedReasons.map((r) => (
                   <tr key={r.reason} className="border-b border-ink-50 last:border-0 dark:border-ink-800/60">
@@ -444,7 +450,7 @@ function LeadsReport({ data }) {
           {lostReasons.length === 0 ? (
             <p className="py-8 text-center text-sm text-ink-400">No lost leads yet.</p>
           ) : (
-            <table className="w-full text-sm">
+            <table className="crm-table w-full text-sm">
               <tbody>
                 {lostReasons.map((r) => (
                   <tr key={r.reason} className="border-b border-ink-50 last:border-0 dark:border-ink-800/60">
@@ -461,7 +467,7 @@ function LeadsReport({ data }) {
           {bySalespersonOutcome.length === 0 ? (
             <p className="py-8 text-center text-sm text-ink-400">No unqualified or lost leads yet.</p>
           ) : (
-            <table className="w-full text-sm">
+            <table className="crm-table w-full text-sm">
               <thead>
                 <tr className="border-b border-ink-100 text-left text-xs font-semibold uppercase tracking-wide text-ink-500 dark:border-ink-800 dark:text-ink-400">
                   <th className="py-2">Salesperson</th>
@@ -645,7 +651,7 @@ function FinanceReport({ data }) {
           {overdueInvoices.length === 0 ? (
             <p className="py-8 text-center text-sm text-ink-400">No overdue invoices. Great work!</p>
           ) : (
-            <table className="w-full text-sm">
+            <table className="crm-table w-full text-sm">
               <thead>
                 <tr className="border-b border-ink-100 text-left text-xs font-semibold uppercase tracking-wide text-ink-500 dark:border-ink-800 dark:text-ink-400">
                   <th className="py-2">Invoice</th>
@@ -734,7 +740,7 @@ function ProjectsReport({ data }) {
           {delayed.length === 0 ? (
             <p className="py-8 text-center text-sm text-ink-400">No delayed projects right now.</p>
           ) : (
-            <table className="w-full text-sm">
+            <table className="crm-table w-full text-sm">
               <thead>
                 <tr className="border-b border-ink-100 text-left text-xs font-semibold uppercase tracking-wide text-ink-500 dark:border-ink-800 dark:text-ink-400">
                   <th className="py-2">Project</th>
@@ -798,7 +804,7 @@ function TeamReport({ data }) {
 
   const columns = [
     {
-      key: 'name', header: 'Employee',
+      key: 'name', width: 260, header: 'Employee',
       render: (row) => (
         <div className="flex items-center gap-2.5">
           <Avatar name={row.name} size="sm" />
@@ -809,9 +815,9 @@ function TeamReport({ data }) {
         </div>
       ),
     },
-    { key: 'department', header: 'Department' },
-    { key: 'role', header: 'Role' },
-    { key: 'metric', header: 'Performance', render: (row) => <span className="text-ink-700 dark:text-ink-200">{row.metric}</span> },
+    { key: 'department', width: 170, header: 'Department' },
+    { key: 'role', width: 170, header: 'Role' },
+    { key: 'metric', width: 190, header: 'Performance', render: (row) => <span className="text-ink-700 dark:text-ink-200">{row.metric}</span> },
   ]
 
   return (

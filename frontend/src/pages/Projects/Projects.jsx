@@ -2,6 +2,8 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import clsx from 'clsx'
 import { Plus, FolderKanban, Activity, CheckCircle2, AlertTriangle, IndianRupee, PauseCircle, CalendarClock, Wallet, Receipt, HandCoins, Layers, X, LayoutList, KanbanSquare, GanttChartSquare, CalendarDays, ChevronLeft, ChevronRight, Flag, Play } from 'lucide-react'
+import { ExportMenu } from '../../components/common/ExportMenu'
+import { describeFilters } from '../../utils/exporter'
 import { PageHeader } from '../../components/common/PageHeader'
 import { SearchBar } from '../../components/common/SearchBar'
 import { FilterToggleButton } from '../../components/common/FilterPanel'
@@ -196,6 +198,18 @@ export default function Projects() {
     ...(m.hasFin ? [['Total value', formatCurrency(m.value, { compact: true }), IndianRupee, 'violet'], ['Invoiced', formatCurrency(m.invoiced, { compact: true }), Receipt, 'sky'], ['Paid', formatCurrency(m.paid, { compact: true }), Wallet, 'emerald'], ['Outstanding', formatCurrency(m.outstanding, { compact: true }), HandCoins, 'rose']] : []),
   ]
   const activeFilters = Object.entries(f).filter(([k, v]) => v !== EMPTY[k]).length
+  // Export: every project that matches the quick view, search and filters on screen (List, Kanban, Timeline and Calendar show the same projects); value only for roles that may see money
+  const exportColumns = [
+    { label: 'Project ID', value: ({ p }) => p.id }, { label: 'Project', value: ({ p }) => p.name }, { label: 'Type', value: ({ p }) => p.projectType }, { label: 'Customer', value: ({ p }) => p.customerName },
+    { label: 'Company', value: ({ companyName }) => companyName }, { label: 'Manager', value: ({ p }) => getUserById(p.manager)?.name || '' }, { label: 'Team', value: ({ p }) => (p.team || []).map((id) => getUserById(id)?.name || id).join(', ') },
+    { label: 'Status', value: ({ p }) => p.status }, { label: 'Priority', value: ({ p }) => p.priority }, { label: 'Start date', value: ({ p }) => p.startDate }, { label: 'Deadline', value: ({ p }) => p.deadline },
+    { label: 'Progress %', value: ({ progress }) => Math.round(progress), align: 'right' }, { label: 'Value', value: ({ billing }) => (billing ? billing.value : ''), align: 'right' }, { label: 'Branch', value: ({ p }) => p.branch },
+  ]
+  const exportFilters = describeFilters([
+    ['View', quick !== 'all' && (QUICK.find((q) => q[0] === quick)?.[1] || quick)], ['Search', search.trim() && `"${search.trim()}"`], ['Manager', f.manager !== 'all' && (getUserById(f.manager)?.name || f.manager)],
+    ['Team member', f.team !== 'all' && (getUserById(f.team)?.name || f.team)], ['Customer', f.customer], ['Company', f.company], ['Status', f.status], ['Priority', f.priority], ['Type', f.type],
+    ['Start from', f.startFrom], ['Start to', f.startTo], ['End from', f.endFrom], ['End to', f.endTo],
+  ])
   const pageRows = filtered.slice((Math.min(page, Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))) - 1) * PAGE_SIZE, Math.min(page, Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))) * PAGE_SIZE)
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const today = localDate(new Date())
@@ -218,7 +232,7 @@ export default function Projects() {
       <PageHeader
         title="Projects"
         description="Delivery of what was sold — from the confirmed order to the final payment."
-        actions={canCreate && <Button icon={Plus} onClick={() => { setPreset(null); setFormOpen(true) }}>New project</Button>}
+        actions={<><ExportMenu title="Projects" noun="project" columns={exportColumns} rows={() => filtered} filters={exportFilters} />{canCreate && <Button icon={Plus} onClick={() => { setPreset(null); setFormOpen(true) }}>New project</Button>}</>}
       />
 
       {!data ? <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-5">{Array.from({ length: 10 }).map((_, i) => <CardSkeleton key={i} className="h-20" />)}</div> : (
@@ -261,9 +275,9 @@ export default function Projects() {
       ) : view === 'list' ? (
         <>
           <div role="table" className="overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-card dark:border-ink-800 dark:bg-ink-900">
-            <div role="row" className="hidden grid-cols-[1.6fr_1.1fr_1fr_6rem_6rem_8rem_6.5rem_6rem] gap-3 border-b border-ink-100 bg-ink-50/60 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-ink-500 lg:grid dark:border-ink-800 dark:bg-ink-800/40"><span>Project</span><span>Customer</span><span>Manager</span><span>Status</span><span>Priority</span><span>Progress</span><span>End date</span><span className="text-right">Value</span></div>
+            <div role="row" className="hidden grid-cols-[minmax(0,1.6fr)_minmax(0,1.1fr)_minmax(0,1fr)_6rem_6rem_8rem_6.5rem_6rem] gap-3 border-b border-ink-100 bg-ink-50/60 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-ink-500 lg:grid dark:border-ink-800 dark:bg-ink-800/40"><span>Project</span><span>Customer</span><span>Manager</span><span>Status</span><span>Priority</span><span>Progress</span><span>End date</span><span className="text-right">Value</span></div>
             {pageRows.map(({ p, progress, billing }) => (
-              <div key={p.id} role="row" tabIndex={0} onClick={() => open(p)} onKeyDown={(e) => e.key === 'Enter' && open(p)} className="grid cursor-pointer grid-cols-1 items-center gap-2 border-b border-ink-50 px-4 py-3 text-sm last:border-0 hover:bg-ink-50/60 lg:grid-cols-[1.6fr_1.1fr_1fr_6rem_6rem_8rem_6.5rem_6rem] lg:gap-3 dark:border-ink-800/60 dark:hover:bg-ink-800/30">
+              <div key={p.id} role="row" tabIndex={0} onClick={() => open(p)} onKeyDown={(e) => e.key === 'Enter' && open(p)} className="grid cursor-pointer grid-cols-1 items-center gap-2 border-b border-ink-50 px-4 py-3 text-sm last:border-0 hover:bg-ink-50/60 lg:grid-cols-[minmax(0,1.6fr)_minmax(0,1.1fr)_minmax(0,1fr)_6rem_6rem_8rem_6.5rem_6rem] lg:gap-3 dark:border-ink-800/60 dark:hover:bg-ink-800/30">
                 <div className="min-w-0"><p className="truncate font-medium text-ink-900 dark:text-ink-50">{p.name}</p><p className="truncate text-xs text-ink-400">{p.id} · {p.projectType}</p></div>
                 <span className="truncate text-ink-600 dark:text-ink-300">{p.customerName}</span>
                 <span className="flex items-center gap-1.5 truncate text-ink-600 dark:text-ink-300"><Avatar name={getUserById(p.manager)?.name} size="xs" />{getUserById(p.manager)?.name}</span>

@@ -2,6 +2,8 @@ import { useOptions } from '../../hooks/useOptions'
 import { useEffect, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { Plus, Trash2, Eye, Plus as PlusSmall, Settings2, Paperclip } from 'lucide-react'
+import { ExportMenu } from '../../components/common/ExportMenu'
+import { filterText } from '../../utils/exporter'
 import { PageHeader } from '../../components/common/PageHeader'
 import { SearchBar } from '../../components/common/SearchBar'
 import { FilterPanel, FilterToggleButton } from '../../components/common/FilterPanel'
@@ -373,17 +375,24 @@ export default function Quotations() {
     { key: 'assignedTo', label: 'Staff', options: reps.map((r) => ({ value: r.id, label: r.name })) },
   ]
 
+  // Export: every quotation that matches the search and filters on screen
+  const exportColumns = [
+    { label: 'Quotation #', value: 'number' }, { label: 'Client', value: 'customerName' }, { label: 'Deal', value: 'dealId' }, { label: 'Amount', value: (q) => Number(q.amount) || 0, align: 'right' },
+    { label: 'Created', value: 'createdDate' }, { label: 'Valid until', value: 'validUntil' }, { label: 'Status', value: 'status' }, { label: 'Owner', value: (q) => getUserById(q.assignedTo)?.name || '' }, { label: 'Branch', value: 'branch' },
+  ]
+  const exportFilters = filterText({ search: crud.search, values: crud.filters, defs: filterDefs })
+
   const columns = [
-    { key: 'number', header: 'Quotation Number', sortable: true, className: 'font-medium text-ink-800 dark:text-ink-100', render: (row) => (<span className="inline-flex items-center gap-1.5">{row.number}{row.attachmentId && <Paperclip size={12} className="text-brand-500" title="Has an attached document" />}</span>) },
-    { key: 'customerName', header: 'Client', sortable: true },
-    { key: 'dealId', header: 'Deal', render: (row) => row.dealId || '—' },
-    { key: 'amount', header: 'Amount', sortable: true, render: (row) => formatCurrency(row.amount) },
-    { key: 'createdDate', header: 'Created Date', sortable: true, render: (row) => formatDate(row.createdDate) },
-    { key: 'validUntil', header: 'Valid Until', sortable: true, render: (row) => formatDate(row.validUntil) },
-    { key: 'status', header: 'Status', render: (row) => <StatusBadge status={row.status} /> },
-    { key: 'assignedTo', header: 'Owner', render: (row) => getUserById(row.assignedTo)?.name.split(' ')[0] || '—' },
+    { key: 'number', width: 200, header: 'Quotation Number', sortable: true, className: 'font-medium text-ink-800 dark:text-ink-100', render: (row) => (<span className="inline-flex items-center gap-1.5">{row.number}{row.attachmentId && <Paperclip size={12} className="text-brand-500" title="Has an attached document" />}</span>) },
+    { key: 'customerName', width: 210, header: 'Client', sortable: true },
+    { key: 'dealId', width: 110, header: 'Deal', render: (row) => row.dealId || '—' },
+    { key: 'amount', width: 140, header: 'Amount', sortable: true, render: (row) => formatCurrency(row.amount) },
+    { key: 'createdDate', width: 140, header: 'Created Date', sortable: true, render: (row) => formatDate(row.createdDate) },
+    { key: 'validUntil', width: 130, header: 'Valid Until', sortable: true, render: (row) => formatDate(row.validUntil) },
+    { key: 'status', width: 130, header: 'Status', render: (row) => <StatusBadge status={row.status} /> },
+    { key: 'assignedTo', width: 140, header: 'Owner', render: (row) => getUserById(row.assignedTo)?.name.split(' ')[0] || '—' },
     {
-      key: 'actions', header: '', headerClassName: 'w-16',
+      key: 'actions', width: 72, header: '', headerClassName: 'w-16',
       render: (row) => (
         <div className="flex justify-end gap-1" onClick={(e) => e.stopPropagation()}>
           <IconButton icon={Eye} size="sm" onClick={() => navigate(`/quotations/${row.id}`)} />
@@ -430,6 +439,7 @@ export default function Quotations() {
         actions={
           <>
             <Button variant="secondary" icon={Settings2} onClick={() => navigate('/quotation-templates')}>Manage Templates</Button>
+            <ExportMenu title="Quotations" noun="quotation" columns={exportColumns} rows={() => crud.allFiltered} filters={exportFilters} />
             <Button icon={Plus} onClick={() => setBuilderOpen(true)}>Create Quotation</Button>
           </>
         }

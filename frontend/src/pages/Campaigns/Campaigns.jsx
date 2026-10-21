@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
-import { Plus, Download, Megaphone, PlayCircle, CheckCircle2, Wallet, Users, IndianRupee, TrendingUp, AlertTriangle, X, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react'
+import { Plus, Megaphone, PlayCircle, CheckCircle2, Wallet, Users, IndianRupee, TrendingUp, AlertTriangle, X, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react'
+import { ExportMenu } from '../../components/common/ExportMenu'
+import { describeFilters } from '../../utils/exporter'
 import { PageHeader } from '../../components/common/PageHeader'
 import { SearchBar } from '../../components/common/SearchBar'
 import { FilterToggleButton } from '../../components/common/FilterPanel'
@@ -13,14 +15,14 @@ import { Pagination } from '../../components/common/Pagination'
 import { useToast } from '../../context/ToastContext'
 import { CAMPAIGN_STATUSES } from '../../utils/marketingRules'
 import { formatCurrency, formatDate } from '../../utils/format'
-import { downloadBlob } from '../Invoices/invoiceClient'
+
 import { useCampaigns, useMarketingConfig, exportMarketing, mkErr } from '../Marketing/marketingClient'
 import { CampaignFormDialog } from './CampaignFormDialog'
 
 const sel = 'h-9 w-full rounded-lg border border-ink-200 bg-white px-2.5 text-xs text-ink-700 dark:border-ink-700 dark:bg-ink-900 dark:text-ink-200'
 const PAGE_SIZE = 12
 const TONE = { brand: 'bg-brand-50 text-brand-600 dark:bg-brand-900/30', emerald: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30', amber: 'bg-amber-50 text-amber-600 dark:bg-amber-900/30', rose: 'bg-rose-50 text-rose-600 dark:bg-rose-900/30', sky: 'bg-sky-50 text-sky-600 dark:bg-sky-900/30', violet: 'bg-violet-50 text-violet-600 dark:bg-violet-900/30' }
-const COLS = 'xl:grid-cols-[1.8fr_1fr_6rem_1fr_5.5rem_5.5rem_4rem_4.5rem_5.5rem_5rem]'
+const COLS = 'xl:grid-cols-[minmax(0,1.8fr)_minmax(0,1fr)_6rem_minmax(0,1fr)_5.5rem_5.5rem_4rem_4.5rem_5.5rem_5rem]'
 const roiText = (v) => (v === null || v === undefined ? '—' : `${v >= 0 ? '+' : ''}${v}%`)
 
 export default function Campaigns() {
@@ -55,7 +57,15 @@ export default function Campaigns() {
   const rows = filtered.slice((cur - 1) * PAGE_SIZE, cur * PAGE_SIZE)
   const active = Object.values(f).filter((v) => v !== 'all').length
   const toggle = (key) => setSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: key === 'name' ? 'asc' : 'desc' }))
-  const exportCsv = () => exportMarketing('campaigns', {}).then((csv) => { downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), 'campaigns.csv'); toast('Campaign report exported.', { type: 'success' }) }).catch((e) => toast(mkErr(e), { type: 'error' }))
+  // Export: every campaign that matches the search and filters on screen (money columns stay empty for roles that may not see them)
+  const exportColumns = [
+    { label: 'Campaign', value: 'number' }, { label: 'Name', value: 'name' }, { label: 'Type', value: 'type' }, { label: 'Channel', value: 'channel' }, { label: 'Lead source', value: 'leadSourceName' },
+    { label: 'Status', value: 'status' }, { label: 'Owner', value: 'ownerName' }, { label: 'Start', value: 'startDate' }, { label: 'End', value: 'endDate' },
+    { label: 'Budget', value: (c) => c.budget ?? '', align: 'right' }, { label: 'Spend', value: (c) => c.spend ?? '', align: 'right' }, { label: 'Leads', value: (c) => c.leads ?? 0, align: 'right' },
+    { label: 'Qualified leads', value: (c) => c.qualifiedLeads ?? 0, align: 'right' }, { label: 'Customers', value: (c) => c.customers ?? 0, align: 'right' },
+    { label: 'Revenue collected', value: (c) => c.collected ?? '', align: 'right' }, { label: 'ROI %', value: (c) => (c.roi === null || c.roi === undefined ? '' : Math.round(c.roi * 10) / 10), align: 'right' },
+  ]
+  const exportFilters = describeFilters([['Search', search.trim() && `"${search.trim()}"`], ['Status', f.status], ['Channel', f.channel], ['Owner', f.owner !== 'all' && (owners.find(([id]) => id === f.owner)?.[1] || f.owner)]])
   const Sort = ({ k, children }) => <button type="button" onClick={() => toggle(k)} className="inline-flex items-center gap-1 uppercase hover:text-ink-800">{children}{sort.key === k ? (sort.dir === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />) : <ArrowUpDown size={11} className="opacity-40" />}</button>
 
   if (error) return <EmptyState icon={AlertTriangle} title="Couldn’t load campaigns" description={error} action={<Button variant="secondary" onClick={reload}>Try again</Button>} />
@@ -63,7 +73,7 @@ export default function Campaigns() {
   const cards = [['Campaigns', m.total, Megaphone, 'brand'], ['Active', m.active, PlayCircle, 'emerald'], ['Completed', m.completed, CheckCircle2, 'sky'], ['Budget', money(m.budget), Wallet, 'violet'], ['Actual spend', money(m.spend), IndianRupee, 'amber'], ['Leads', m.leads, Users, 'brand'], ['Customers', m.customers, Users, 'emerald'], ['Revenue collected', money(m.revenue), IndianRupee, 'emerald'], ['ROI', hidden ? '—' : roiText(m.roi), TrendingUp, m.roi !== null && m.roi < 0 ? 'rose' : 'emerald']]
   return (
     <div>
-      <PageHeader title="Campaigns" description="Plan, run and measure marketing campaigns. Every result below is computed from the leads, deals, customers, invoices and payments attributed to the campaign." actions={<>{perms.export && <Button variant="secondary" icon={Download} onClick={exportCsv}>Export</Button>}{perms.createCampaign && <Button icon={Plus} onClick={() => setFormOpen(true)}>New campaign</Button>}</>} />
+      <PageHeader title="Campaigns" description="Plan, run and measure marketing campaigns. Every result below is computed from the leads, deals, customers, invoices and payments attributed to the campaign." actions={<><ExportMenu title="Campaigns" noun="campaign" permission={perms.export} columns={exportColumns} rows={() => filtered} filters={exportFilters} />{perms.createCampaign && <Button icon={Plus} onClick={() => setFormOpen(true)}>New campaign</Button>}</>} />
       {!campaigns ? <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">{Array.from({ length: 5 }).map((_, i) => <CardSkeleton key={i} className="h-20" />)}</div> : (
         <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9">
           {cards.map(([label, value, Icon, tone]) => <div key={label} className="rounded-xl border border-ink-100 bg-white p-3 shadow-card dark:border-ink-800 dark:bg-ink-900"><div className="flex items-center justify-between"><span className="text-xs font-medium text-ink-500">{label}</span><span className={clsx('flex h-6 w-6 items-center justify-center rounded-lg', TONE[tone])}><Icon size={13} /></span></div><p className="mt-1.5 break-words text-base font-bold text-ink-900 dark:text-ink-50">{value}</p></div>)}

@@ -2,7 +2,7 @@ import { useOptions } from '../../hooks/useOptions'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import clsx from 'clsx'
-import { Plus, Pencil, Trash2, Package, Copy, LayoutGrid, Rows3, Download, X, Layers, CheckCircle2, PauseCircle, Tag, Link2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, Package, Copy, LayoutGrid, Rows3, X, Layers, CheckCircle2, PauseCircle, Tag, Link2 } from 'lucide-react'
 import { PageHeader } from '../../components/common/PageHeader'
 import { SearchBar } from '../../components/common/SearchBar'
 import { FilterToggleButton } from '../../components/common/FilterPanel'
@@ -14,7 +14,8 @@ import { Pagination } from '../../components/common/Pagination'
 import { useAuth } from '../../context/AuthContext'
 import { useProducts, useCatalogData, useProductCategories } from '../../hooks/useProducts'
 import { formatCurrency } from '../../utils/format'
-import { downloadCsv } from '../../utils/csv'
+import { ExportMenu } from '../../components/common/ExportMenu'
+import { describeFilters } from '../../utils/exporter'
 import { TAX_RATES, computeProductUsage } from '../../utils/productRules'
 import { ProductFormDialog } from './ProductFormDialog'
 import { ProductCategoriesDialog } from './ProductCategoriesDialog'
@@ -97,10 +98,16 @@ export default function Products() {
     return { total: products.length, active: act.length, inactive: products.length - act.length, categories: new Set(products.map((p) => p.category)).size, avg: act.length ? act.reduce((s, p) => s + p.price, 0) / act.length : 0 }
   }, [products])
 
-  const exportCsv = () => downloadCsv('products-services.csv', filtered, [
+  // Export: every product / service that matches the search and filters on screen, in the chosen sort order
+  const exportColumns = [
     { label: 'Code', value: 'code' }, { label: 'Name', value: 'name' }, { label: 'Category', value: 'category' }, { label: 'Type', value: 'type' }, { label: 'Unit', value: 'unit' },
-    { label: 'Price', value: 'price' }, { label: 'Billing cycle', value: 'billingCycle' }, { label: 'Tax %', value: 'taxRate' }, { label: 'Default discount %', value: 'defaultDiscount' }, { label: 'Status', value: 'status' },
-    { label: 'Used in documents', value: (p) => docCount(p.id) },
+    { label: 'Price', value: (p) => Number(p.price) || 0, align: 'right' }, { label: 'Billing cycle', value: 'billingCycle' }, { label: 'Tax %', value: (p) => Number(p.taxRate) || 0, align: 'right' },
+    { label: 'Default discount %', value: (p) => Number(p.defaultDiscount) || 0, align: 'right' }, { label: 'Status', value: (p) => p.status || 'Active' },
+    { label: 'Used in documents', value: (p) => docCount(p.id), align: 'right' },
+  ]
+  const exportFilters = describeFilters([
+    ['Search', search.trim() && `"${search.trim()}"`], ['Category', f.category], ['Type', f.type], ['Status', f.status], ['Billing cycle', f.billingCycle], ['Unit', f.unit],
+    ['Tax rate', f.taxRate !== 'all' && `${f.taxRate}%`], ['Price from', f.min], ['Price to', f.max],
   ])
   const dupTemplate = (p) => ({ ...p, name: `${p.name} (copy)`, status: 'Active' })
 
@@ -111,7 +118,7 @@ export default function Products() {
       <PageHeader
         title="Products & Services"
         description="The master catalog behind every deal, proposal, quotation, order and invoice."
-        actions={<><Button variant="secondary" icon={Tag} onClick={() => setCatsOpen(true)}>Categories</Button><Button variant="secondary" icon={Download} onClick={exportCsv}>Export</Button>{canCreate && <Button icon={Plus} onClick={() => setForm({})}>Add Product</Button>}</>}
+        actions={<><Button variant="secondary" icon={Tag} onClick={() => setCatsOpen(true)}>Categories</Button><ExportMenu title="Products & Services" name="products-services" noun="item" columns={exportColumns} rows={() => filtered} filters={exportFilters} />{canCreate && <Button icon={Plus} onClick={() => setForm({})}>Add Product</Button>}</>}
       />
 
       <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5" aria-label="Catalog summary">
@@ -193,10 +200,10 @@ export default function Products() {
             </div>
           ) : (
             <div role="table" className="overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-card dark:border-ink-800 dark:bg-ink-900">
-              <div role="row" className="hidden grid-cols-[7rem_1fr_9rem_8rem_7rem_6rem_auto] gap-3 border-b border-ink-100 bg-ink-50/60 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-ink-500 md:grid dark:border-ink-800 dark:bg-ink-800/40"><span>Code</span><span>Name</span><span>Category</span><span className="text-right">Price</span><span>Tax</span><span>Usage</span><span className="w-24 text-right">Status</span></div>
+              <div role="row" className="hidden grid-cols-[7rem_minmax(0,1fr)_9rem_8rem_7rem_6rem_auto] gap-3 border-b border-ink-100 bg-ink-50/60 px-4 py-2.5 text-xs font-semibold uppercase tracking-wide text-ink-500 md:grid dark:border-ink-800 dark:bg-ink-800/40"><span>Code</span><span>Name</span><span>Category</span><span className="text-right">Price</span><span>Tax</span><span>Usage</span><span className="w-24 text-right">Status</span></div>
               {pageItems.map((p) => (
                 <div key={p.id} role="row" tabIndex={0} onClick={() => navigate(`/products/${p.id}`)} onKeyDown={(e) => e.key === 'Enter' && navigate(`/products/${p.id}`)}
-                  className={clsx('grid cursor-pointer grid-cols-[1fr_auto] items-center gap-3 border-b border-ink-50 px-4 py-3 text-sm last:border-0 hover:bg-ink-50/60 dark:border-ink-800/60 dark:hover:bg-ink-800/30 md:grid-cols-[7rem_1fr_9rem_8rem_7rem_6rem_auto]', p.status === 'Inactive' && 'opacity-70')}>
+                  className={clsx('grid cursor-pointer grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-ink-50 px-4 py-3 text-sm last:border-0 hover:bg-ink-50/60 dark:border-ink-800/60 dark:hover:bg-ink-800/30 md:grid-cols-[7rem_minmax(0,1fr)_9rem_8rem_7rem_6rem_auto]', p.status === 'Inactive' && 'opacity-70')}>
                   <span className="hidden font-mono text-xs text-ink-500 md:block">{p.code}</span>
                   <div className="min-w-0"><p className="truncate font-medium text-ink-900 dark:text-ink-50">{p.name}</p><p className="truncate text-xs text-ink-400 md:hidden">{p.code} · {p.category}</p></div>
                   <span className="hidden text-ink-600 md:block dark:text-ink-300">{p.category}</span>

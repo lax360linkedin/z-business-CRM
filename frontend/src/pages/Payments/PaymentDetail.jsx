@@ -194,7 +194,7 @@ export default function PaymentDetail() {
       <Tabs className="mb-5" active={tab} onChange={setTab} tabs={tabs} />
 
       {tab === 'overview' && (
-        <div className="grid gap-5 lg:grid-cols-[1.3fr_1fr]">
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)]">
           <div className="min-w-0 space-y-5">
             <Card title="Payment details"><dl className="divide-y divide-ink-50 dark:divide-ink-800/60">
               <KV k="Payment number"><span className="font-mono">{pay.number}</span></KV><KV k="Status">{pay.status}</KV><KV k="Payment date">{formatDate(pay.date)}</KV><KV k="Method">{pay.method}</KV><KV k="Transaction reference"><span className="font-mono">{pay.reference || '—'}</span></KV><KV k="Bank / account">{pay.bankAccount}</KV>

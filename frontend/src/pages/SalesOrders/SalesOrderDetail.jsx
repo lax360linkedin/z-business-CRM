@@ -263,7 +263,7 @@ export default function SalesOrderDetail() {
 
           <Card title="Products / services" icon={Package}>
             <div className="overflow-x-auto rounded-xl border border-ink-100 dark:border-ink-800">
-              <table className="w-full min-w-[720px] text-sm">
+              <table className="crm-table w-full min-w-[720px] text-sm">
                 <thead>
                   <tr className="border-b border-ink-100 bg-ink-50/60 text-left text-xs font-semibold uppercase text-ink-500 dark:border-ink-800 dark:bg-ink-800/40 dark:text-ink-400">
                     <th className="px-4 py-3">Item / service</th><th className="px-3 py-3 text-right">Qty</th><th className="px-3 py-3 text-right">Unit price</th><th className="px-3 py-3 text-right">Disc</th><th className="px-3 py-3 text-right">Tax</th><th className="px-3 py-3 text-right">Delivered</th><th className="px-4 py-3 text-right">Line total</th>
@@ -312,7 +312,7 @@ export default function SalesOrderDetail() {
                 </dl>
                 {payments.length > 0 ? (
                   <div className="overflow-hidden rounded-xl border border-ink-100 dark:border-ink-800">
-                    <table className="w-full text-sm">
+                    <table className="crm-table w-full text-sm">
                       <thead><tr className="border-b border-ink-100 bg-ink-50/60 text-left text-xs font-semibold uppercase text-ink-500 dark:border-ink-800 dark:bg-ink-800/40"><th className="px-3 py-2">Reference</th><th className="px-3 py-2">Method</th><th className="px-3 py-2">Date</th><th className="px-3 py-2 text-right">Amount</th></tr></thead>
                       <tbody>{payments.map((p) => (
                         <tr key={p.id} className="border-b border-ink-50 last:border-0 dark:border-ink-800/60"><td className="px-3 py-2 font-medium text-ink-700 dark:text-ink-200">{p.reference}</td><td className="px-3 py-2 text-ink-500">{p.method}</td><td className="px-3 py-2 text-ink-500">{formatDate(p.date)}</td><td className="px-3 py-2 text-right font-medium text-emerald-600">{formatCurrency(p.amount)}</td></tr>

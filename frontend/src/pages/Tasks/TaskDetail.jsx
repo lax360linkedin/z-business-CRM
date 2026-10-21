@@ -2,10 +2,7 @@ import { DocumentsPanel } from '../Documents/DocumentsPanel'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import clsx from 'clsx'
-import {
-  ArrowLeft, CheckCircle2, RotateCcw, Pencil, Phone, Mail, MessageCircle, CalendarPlus, StickyNote, ListPlus, Paperclip, Download, Trash2, Send, Lock, Repeat, Bell, Plus, ShieldAlert, FileQuestion,
-  History, MessageSquare, Link2, GitBranch, Flag, CalendarClock, UserPlus, XCircle, Copy, Zap, AtSign, Clock, FileText,
-} from 'lucide-react'
+import { ArrowLeft, CheckCircle2, RotateCcw, Pencil, Phone, Mail, MessageCircle, CalendarPlus, StickyNote, ListPlus, Paperclip, Trash2, Send, Lock, Repeat, Bell, Plus, ShieldAlert, FileQuestion, History, MessageSquare, Link2, GitBranch, Flag, CalendarClock, UserPlus, XCircle, Copy, Zap, AtSign, Clock, FileText } from 'lucide-react'
 import { Button } from '../../components/common/Button'
 import { Breadcrumbs } from '../../components/common/Breadcrumbs'
 import { EmptyState } from '../../components/common/EmptyState'
@@ -215,7 +212,7 @@ export default function TaskDetail() {
       {rec && <div className="mb-4 flex items-center gap-2 rounded-xl border border-violet-200 bg-violet-50/70 px-4 py-2.5 text-sm text-violet-800 dark:border-violet-800/40 dark:bg-violet-900/10 dark:text-violet-200"><Repeat size={15} /> Repeats {rec.interval > 1 || rec.frequency === 'custom' ? `every ${rec.interval} ${rec.frequency === 'custom' || rec.frequency === 'daily' ? 'day(s)' : rec.frequency === 'weekly' ? 'week(s)' : 'month(s)'}` : rec.frequency}. {d.nextTask ? <>Next: <Link className="font-medium underline" to={`/tasks/${d.nextTask.id}`}>{d.nextTask.id}</Link> due {formatDate(d.nextTask.dueDate)}.</> : 'The next task is created when this one is completed.'}</div>}
       {task.recurringRootId && <div className="mb-4 flex items-center gap-2 rounded-xl bg-ink-50 px-4 py-2 text-xs text-ink-500 dark:bg-ink-800/40"><Repeat size={13} /> Part of a recurring series.</div>}
 
-      <div className="grid gap-5 lg:grid-cols-[1fr_21rem]">
+      <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_21rem]">
         <div className="min-w-0 space-y-5">
           <Card title="Task information" icon={FileText}>
             {task.description ? <p className="mb-4 whitespace-pre-wrap text-sm text-ink-700 dark:text-ink-200">{task.description}</p> : <p className="mb-4 text-sm italic text-ink-400">No description.</p>}

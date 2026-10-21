@@ -316,7 +316,7 @@ export default function CustomerDetail() {
         deals.length === 0 ? <EmptyState title="No deals yet" description="No deals have been created for this customer's company." /> : (
           <div className="overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-card dark:border-ink-800 dark:bg-ink-900">
             <div className="scrollbar-thin overflow-x-auto">
-              <table className="w-full min-w-[600px] text-sm">
+              <table className="crm-table w-full min-w-[600px] text-sm">
                 <thead>
                   <tr className="border-b border-ink-100 bg-ink-50/60 text-left text-xs font-semibold uppercase text-ink-500 dark:border-ink-800 dark:bg-ink-800/40 dark:text-ink-400">
                     <th className="px-4 py-3">Deal</th><th className="px-4 py-3">Service</th><th className="px-4 py-3">Value</th><th className="px-4 py-3">Stage</th><th className="px-4 py-3">Closing</th>
@@ -362,7 +362,7 @@ export default function CustomerDetail() {
         quotations.length === 0 ? <EmptyState title="No quotations yet" description="No quotations have been sent to this customer." /> : (
           <div className="overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-card dark:border-ink-800 dark:bg-ink-900">
             <div className="scrollbar-thin overflow-x-auto">
-              <table className="w-full min-w-[500px] text-sm">
+              <table className="crm-table w-full min-w-[500px] text-sm">
                 <thead>
                   <tr className="border-b border-ink-100 bg-ink-50/60 text-left text-xs font-semibold uppercase text-ink-500 dark:border-ink-800 dark:bg-ink-800/40 dark:text-ink-400">
                     <th className="px-4 py-3">Quotation #</th><th className="px-4 py-3">Amount</th><th className="px-4 py-3">Valid Until</th><th className="px-4 py-3">Status</th>
@@ -388,7 +388,7 @@ export default function CustomerDetail() {
         salesOrders.length === 0 ? <EmptyState title="No sales orders yet" description="Sales orders appear here once a quotation for this customer is accepted and converted." /> : (
           <div className="overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-card dark:border-ink-800 dark:bg-ink-900">
             <div className="scrollbar-thin overflow-x-auto">
-              <table className="w-full min-w-[560px] text-sm">
+              <table className="crm-table w-full min-w-[560px] text-sm">
                 <thead>
                   <tr className="border-b border-ink-100 bg-ink-50/60 text-left text-xs font-semibold uppercase text-ink-500 dark:border-ink-800 dark:bg-ink-800/40 dark:text-ink-400">
                     <th className="px-4 py-3">Sales Order #</th><th className="px-4 py-3">Quotation</th><th className="px-4 py-3">Order date</th><th className="px-4 py-3">Amount</th><th className="px-4 py-3">Status</th>
@@ -415,7 +415,7 @@ export default function CustomerDetail() {
         invoices.length === 0 ? <EmptyState title="No invoices yet" description="No invoices have been raised for this customer." /> : (
           <div className="overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-card dark:border-ink-800 dark:bg-ink-900">
             <div className="scrollbar-thin overflow-x-auto">
-              <table className="w-full min-w-[500px] text-sm">
+              <table className="crm-table w-full min-w-[500px] text-sm">
                 <thead>
                   <tr className="border-b border-ink-100 bg-ink-50/60 text-left text-xs font-semibold uppercase text-ink-500 dark:border-ink-800 dark:bg-ink-800/40 dark:text-ink-400">
                     <th className="px-4 py-3">Invoice #</th><th className="px-4 py-3">Amount</th><th className="px-4 py-3">Due</th><th className="px-4 py-3">Status</th>
@@ -441,7 +441,7 @@ export default function CustomerDetail() {
         payments.length === 0 ? <EmptyState title="No payments yet" description="No payments have been recorded for this customer." /> : (
           <div className="overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-card dark:border-ink-800 dark:bg-ink-900">
             <div className="scrollbar-thin overflow-x-auto">
-              <table className="w-full min-w-[600px] text-sm">
+              <table className="crm-table w-full min-w-[600px] text-sm">
                 <thead>
                   <tr className="border-b border-ink-100 bg-ink-50/60 text-left text-xs font-semibold uppercase text-ink-500 dark:border-ink-800 dark:bg-ink-800/40 dark:text-ink-400">
                     <th className="px-4 py-3">Payment</th><th className="px-4 py-3">Invoice</th><th className="px-4 py-3">Amount</th><th className="px-4 py-3">Method</th><th className="px-4 py-3">Reference</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Date</th>

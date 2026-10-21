@@ -1,4 +1,4 @@
-import { NavLink } from 'react-router-dom'
+import { NavLink, useLocation } from 'react-router-dom'
 import { motion, AnimatePresence } from 'framer-motion'
 import { ChevronsLeft, ChevronsRight, X, Lock } from 'lucide-react'
 import clsx from 'clsx'
@@ -13,6 +13,10 @@ import { prefetchData } from '../../api/prefetch'
 // AppLayout's route-level gate (a module typed into the address bar is blocked and logged) plus the mock API's own checks.
 function NavItem({ item, collapsed, allowed }) {
   const { hasPermission } = useAuth()
+  const { pathname } = useLocation()
+  const name = item.display || item.label
+  // an entry can step aside for the entries that live under its address (Administration -> Branches / User Management / Roles & Permissions highlight themselves instead)
+  const stepAside = (item.exclude || []).some((p) => pathname === p || pathname.startsWith(`${p}/`))
   // the screen's code AND its data start downloading as soon as the pointer / focus / finger reaches the entry, a moment before the click
   const warm = () => { preloadPath(item.to); prefetchData(item.to, (label) => hasPermission(label, 'view')) }
   return (
@@ -26,7 +30,7 @@ function NavItem({ item, collapsed, allowed }) {
           'group relative flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors',
           !allowed
             ? 'text-ink-400 opacity-50 hover:bg-ink-100 hover:opacity-70 dark:text-ink-500 dark:hover:bg-white/5'
-            : isActive
+            : isActive && !stepAside
               ? 'bg-brand-600 text-white shadow-sm'
               : 'text-ink-600 hover:bg-ink-100 hover:text-ink-900 dark:text-ink-300 dark:hover:bg-white/5 dark:hover:text-white',
           collapsed && 'justify-center px-0',
@@ -34,11 +38,11 @@ function NavItem({ item, collapsed, allowed }) {
       }
     >
       <item.icon size={17} className="shrink-0" />
-      {!collapsed && <span className="truncate">{item.label}</span>}
+      {!collapsed && <span className="truncate">{name}</span>}
       {!collapsed && !allowed && <Lock size={12} className="ml-auto shrink-0 text-ink-400 dark:text-ink-500" />}
       {collapsed && (
         <span className="pointer-events-none absolute left-full ml-2 whitespace-nowrap rounded-md bg-ink-800 px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-popover transition-opacity duration-150 group-hover:opacity-100 z-50">
-          {item.label}{!allowed && ' (no access)'}
+          {name}{!allowed && ' (no access)'}
         </span>
       )}
     </NavLink>

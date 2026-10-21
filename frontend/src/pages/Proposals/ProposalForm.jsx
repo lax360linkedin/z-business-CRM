@@ -171,7 +171,7 @@ export default function ProposalForm() {
 
           <Section title="Modules / features" action={<Button size="sm" variant="secondary" icon={Plus} onClick={() => set({ modules: [...form.modules, { name: '', description: '' }] })}>Add module</Button>}>
             {!form.modules.length ? <p className="text-xs text-ink-400">No modules added.</p> : form.modules.map((m, i) => (
-              <div key={i} className="mb-2 grid grid-cols-[1fr_2fr_auto] gap-2"><Input value={m.name} onChange={(e) => rowSet('modules', i, { name: e.target.value })} placeholder="Module name" /><Input value={m.description} onChange={(e) => rowSet('modules', i, { description: e.target.value })} placeholder="What it does" /><IconButton icon={Trash2} size="sm" aria-label="Remove module" onClick={() => set({ modules: form.modules.filter((_, j) => j !== i) })} /></div>
+              <div key={i} className="mb-2 grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)_auto] gap-2"><Input value={m.name} onChange={(e) => rowSet('modules', i, { name: e.target.value })} placeholder="Module name" /><Input value={m.description} onChange={(e) => rowSet('modules', i, { description: e.target.value })} placeholder="What it does" /><IconButton icon={Trash2} size="sm" aria-label="Remove module" onClick={() => set({ modules: form.modules.filter((_, j) => j !== i) })} /></div>
             ))}
           </Section>
 
@@ -183,7 +183,7 @@ export default function ProposalForm() {
 
           <Section title="Project timeline" action={<Button size="sm" variant="secondary" icon={Plus} onClick={() => set({ timeline: [...form.timeline, { phase: '', description: '', duration: '' }] })}>Add phase</Button>}>
             {!form.timeline.length ? <p className="text-xs text-ink-400">No phases added.</p> : form.timeline.map((t, i) => (
-              <div key={i} className="mb-2 grid grid-cols-[1fr_2fr_120px_auto] gap-2"><Input value={t.phase} onChange={(e) => rowSet('timeline', i, { phase: e.target.value })} placeholder="Phase" /><Input value={t.description} onChange={(e) => rowSet('timeline', i, { description: e.target.value })} placeholder="Activities" /><Input value={t.duration} onChange={(e) => rowSet('timeline', i, { duration: e.target.value })} placeholder="2 weeks" /><IconButton icon={Trash2} size="sm" aria-label="Remove phase" onClick={() => set({ timeline: form.timeline.filter((_, j) => j !== i) })} /></div>
+              <div key={i} className="mb-2 grid grid-cols-[minmax(0,1fr)_minmax(0,2fr)_120px_auto] gap-2"><Input value={t.phase} onChange={(e) => rowSet('timeline', i, { phase: e.target.value })} placeholder="Phase" /><Input value={t.description} onChange={(e) => rowSet('timeline', i, { description: e.target.value })} placeholder="Activities" /><Input value={t.duration} onChange={(e) => rowSet('timeline', i, { duration: e.target.value })} placeholder="2 weeks" /><IconButton icon={Trash2} size="sm" aria-label="Remove phase" onClick={() => set({ timeline: form.timeline.filter((_, j) => j !== i) })} /></div>
             ))}
           </Section>
 

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useSearchParams, useLocation } from 'react-router-dom'
 import clsx from 'clsx'
-import { Plus, Upload, Download, Users2, UserCheck, CalendarOff, Building2, UsersRound, Crown, LayoutList, LayoutGrid, Network, X, Save, Bookmark, Columns3, Phone, Mail, ClipboardList, Eye, Pencil, Repeat, MoreHorizontal, AlertTriangle, KeyRound, Trash2 } from 'lucide-react'
+import { Plus, Upload, Printer, Users2, UserCheck, CalendarOff, Building2, UsersRound, Crown, LayoutList, LayoutGrid, Network, X, Save, Bookmark, Columns3, Phone, Mail, ClipboardList, Eye, Pencil, Repeat, MoreHorizontal, AlertTriangle, KeyRound, Trash2 } from 'lucide-react'
 import { PageHeader } from '../../components/common/PageHeader'
 import { SearchBar } from '../../components/common/SearchBar'
 import { FilterToggleButton } from '../../components/common/FilterPanel'
@@ -20,9 +20,13 @@ import { formatDate, timeAgo } from '../../utils/format'
 import { TaskFormDialog } from '../Tasks/TaskFormDialog'
 import { useOrg } from './employeeClient'
 import { EmployeeFormDialog } from './EmployeeFormDialog'
-import { StatusDialog, AccessDialog, BulkDialog, ImportDialog } from './EmployeeDialogs'
+import { StatusDialog, AccessDialog, BulkDialog } from './EmployeeDialogs'
+import { ImportDialog } from '../../components/import/ImportDialog'
+import { TemplateButton } from '../../components/import/TemplateButton'
 import { DeletePersonDialog } from './DeletePersonDialog'
-import { exportCsv, exportExcel, exportPdf, printRows } from './employeeExport'
+import { employeeColumns, printRows } from './employeeExport'
+import { ExportMenu } from '../../components/common/ExportMenu'
+import { describeFilters } from '../../utils/exporter'
 import { OrgChart } from './OrgChart'
 import { DepartmentsTab, TeamsTab } from './OrgStructure'
 
@@ -37,6 +41,8 @@ const COLUMNS = [
   { key: 'branch', label: 'Branch' }, { key: 'leader', label: 'Team leader' }, { key: 'manager', label: 'Manager' }, { key: 'status', label: 'Status' }, { key: 'role', label: 'CRM role' }, { key: 'mode', label: 'Work mode' }, { key: 'joined', label: 'Joining date' },
   { key: 'login', label: 'Last login' }, { key: 'workload', label: 'Workload', off: true }, { key: 'email', label: 'Official email', off: true }, { key: 'phone', label: 'Phone', off: true }, { key: 'location', label: 'Location', off: true }, { key: 'type', label: 'Employment type', off: true }, { key: 'exp', label: 'Experience', off: true },
 ]
+// px width of each directory column: the table is laid out at these (table-layout: fixed), so no value can stretch a column
+const COL_W = { employee: 260, id: 120, designation: 190, department: 170, team: 190, branch: 140, leader: 170, manager: 170, status: 130, role: 160, mode: 130, joined: 140, login: 130, workload: 150, email: 250, phone: 150, location: 150, type: 150, exp: 110 }
 const SORT = { employee: (e) => e.fullName, id: (e) => e.id, designation: (e) => e.designation, department: (e) => e.departmentName || '', team: (e) => e.teamName || '', leader: (e) => e.teamLeaderName || '', manager: (e) => e.managerName || '', status: (e) => e.status, role: (e) => e.crmRole || '', mode: (e) => e.workMode, joined: (e) => e.joinDate, login: (e) => e.lastLogin || '', workload: (e) => e.workload.score, exp: (e) => e.experience, email: (e) => e.officialEmail, phone: (e) => e.mobile || '', location: (e) => e.workLocation, type: (e) => e.employmentType }
 const lsGet = (k, d) => { try { return JSON.parse(localStorage.getItem(k)) ?? d } catch { return d } }
 const lsSet = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)) } catch { /* private mode */ } }
@@ -123,7 +129,12 @@ export default function Employees() {
   const toggleSort = (key) => setSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: 'asc' }))
   const toggleSel = (id) => setSelected((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n })
   const allOnPage = rows.length > 0 && rows.every((r) => selected.has(r.id))
-  const doExport = (kind) => { const data = filtered; if (!data.length) return toast('Nothing to export for the current filters.', { type: 'warning' }); const s = perms.viewSensitive; if (kind === 'csv') exportCsv(data, s); if (kind === 'xls') exportExcel(data, s); if (kind === 'pdf') exportPdf(data, s); if (kind === 'print' && !printRows(data, s)) return toast('Allow pop-ups to print.', { type: 'warning' }); toast(`${data.length} employee(s) exported using the current filters.`, { type: 'success' }) }
+  // Export: every employee that matches the search, quick view and filters on screen; personal / HR fields only for people who may see them
+  const exportFilters = describeFilters([
+    ['View', quick !== 'all' && (QUICK.find((q) => q[0] === quick)?.[1] || quick)], ['Search', search.trim() && `"${search.trim()}"`],
+    ...Object.entries(f).filter(([, v]) => v !== '' && v !== 'all' && v !== false).map(([k, v]) => [k === 'dept' ? 'Department' : k === 'team' ? 'Team' : k === 'sub' ? 'Sub-team' : k === 'leader' ? 'Team leader' : k === 'manager' ? 'Manager' : k, k === 'dept' ? (departments || []).find((d) => d.id === v)?.name || v : k === 'team' || k === 'sub' ? (teams || []).find((t) => t.id === v)?.name || v : k === 'leader' || k === 'manager' ? (employees || []).find((e) => e.id === v)?.fullName || v : v]),
+  ])
+  const printList = () => { if (!filtered.length) return toast('Nothing to print for the current filters.', { type: 'warning' }); if (!printRows(filtered, perms.viewSensitive)) toast('Allow pop-ups to print.', { type: 'warning' }) }
 
   if (error) return <EmptyState icon={AlertTriangle} title="Couldn’t load employees" description={error} action={<Button variant="secondary" onClick={reload}>Try again</Button>} />
   if (!employees && !cfg) return <div className="space-y-4"><CardSkeleton className="h-24" /><CardSkeleton className="h-72" /></div>
@@ -174,8 +185,9 @@ export default function Employees() {
   return (
     <div>
       <PageHeader title="Employees" description="Employee directory, organisation structure, departments and teams — linked to User Management for CRM access." actions={<>
-        {(perms.export) && <Dropdown width="w-48" trigger={<Button variant="secondary" icon={Download}>Export</Button>}><DropdownLabel>{filtered.length} filtered employee(s)</DropdownLabel><DropdownItem onClick={() => doExport('csv')}>CSV</DropdownItem><DropdownItem onClick={() => doExport('xls')}>Excel (.xls)</DropdownItem><DropdownItem onClick={() => doExport('pdf')}>PDF</DropdownItem><DropdownItem onClick={() => doExport('print')}>Print</DropdownItem></Dropdown>}
+        <ExportMenu title="Employees" noun="employee" permission={!!perms.export} columns={employeeColumns(perms.viewSensitive)} rows={() => filtered} filters={exportFilters} extraItems={[{ label: 'Print', icon: Printer, onClick: printList }]} />
         {perms.import && <Button variant="secondary" icon={Upload} onClick={() => setDlg({ kind: 'import' })}>Import</Button>}
+        {perms.import && <TemplateButton module="employees" />}
         {perms.create && <Button icon={Plus} onClick={() => setDlg({ kind: 'create' })}>Add employee</Button>}</>} />
       {!employees ? <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">{Array.from({ length: 6 }).map((_, i) => <CardSkeleton key={i} className="h-20" />)}</div> : (
         <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">{cards.map(([k, v, Icon]) => <div key={k} className="rounded-xl border border-ink-100 bg-white p-3 shadow-card dark:border-ink-800 dark:bg-ink-900"><div className="flex items-center justify-between"><span className="text-xs font-medium text-ink-500">{k}</span><span className="flex h-6 w-6 items-center justify-center rounded-lg bg-brand-50 text-brand-600 dark:bg-brand-900/30"><Icon size={13} /></span></div><p className="mt-1.5 text-xl font-bold text-ink-900 dark:text-ink-50">{v}</p></div>)}</div>
@@ -235,13 +247,13 @@ export default function Employees() {
               </div>))}</div>
           ) : (
             <div className="overflow-x-auto rounded-2xl border border-ink-100 bg-white shadow-card dark:border-ink-800 dark:bg-ink-900">
-              <table className="w-full min-w-[900px] text-sm"><thead><tr className="border-b border-ink-100 bg-ink-50/60 text-left text-xs font-semibold uppercase text-ink-500 dark:border-ink-800 dark:bg-ink-800/40">
+              <table className="w-full table-fixed text-sm" style={{ minWidth: shown.reduce((n, c) => n + (COL_W[c.key] || 160), 0) + (perms.bulk ? 44 : 0) + 56 }}><colgroup>{perms.bulk && <col style={{ width: 44 }} />}{shown.map((c) => <col key={c.key} style={{ width: COL_W[c.key] || 160 }} />)}<col style={{ width: 56 }} /></colgroup><thead><tr className="h-11 border-b border-ink-100 bg-ink-50/60 text-left text-xs font-semibold uppercase text-ink-500 dark:border-ink-800 dark:bg-ink-800/40">
                 {perms.bulk && <th className="w-10 px-3 py-2.5"><input type="checkbox" aria-label="Select all on this page" className="h-3.5 w-3.5 rounded border-ink-300 text-brand-600" checked={allOnPage} onChange={() => setSelected((s) => { const n = new Set(s); rows.forEach((r) => (allOnPage ? n.delete(r.id) : n.add(r.id))); return n })} /></th>}
-                {shown.map((c) => <th key={c.key} className="px-3 py-2.5"><button type="button" onClick={() => toggleSort(c.key)} className="inline-flex items-center gap-1 uppercase hover:text-ink-800">{c.label}{sort.key === c.key && <span>{sort.dir === 'asc' ? '↑' : '↓'}</span>}</button></th>)}<th className="w-12" /></tr></thead>
+                {shown.map((c) => <th key={c.key} scope="col" aria-sort={sort.key === c.key ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined} className="overflow-hidden whitespace-nowrap px-3 py-2"><button type="button" title={c.label} onClick={() => toggleSort(c.key)} className="flex max-w-full items-center gap-1 uppercase hover:text-ink-800"><span className="min-w-0 truncate">{c.label}</span>{sort.key === c.key && <span className="shrink-0">{sort.dir === 'asc' ? '↑' : '↓'}</span>}</button></th>)}<th className="w-14" /></tr></thead>
                 <tbody>{rows.map((e) => (
-                  <tr key={e.id} className={clsx('border-b border-ink-50 last:border-0 hover:bg-ink-50/60 dark:border-ink-800/60 dark:hover:bg-ink-800/30', !isWorking(e.status) && 'opacity-70')}>
-                    {perms.bulk && <td className="px-3"><input type="checkbox" aria-label={`Select ${e.fullName}`} className="h-3.5 w-3.5 rounded border-ink-300 text-brand-600" checked={selected.has(e.id)} onChange={() => toggleSel(e.id)} /></td>}
-                    {shown.map((c) => <td key={c.key} className="px-3 py-2.5">{cell(c.key, e)}</td>)}<td className="px-2 text-right">{menu(e)}</td></tr>))}</tbody></table>
+                  <tr key={e.id} className={clsx('h-14 border-b border-ink-50 last:border-0 hover:bg-ink-50/60 dark:border-ink-800/60 dark:hover:bg-ink-800/30', !isWorking(e.status) && 'opacity-70')}>
+                    {perms.bulk && <td className="px-3 py-1.5"><input type="checkbox" aria-label={`Select ${e.fullName}`} className="h-3.5 w-3.5 rounded border-ink-300 text-brand-600" checked={selected.has(e.id)} onChange={() => toggleSel(e.id)} /></td>}
+                    {shown.map((c) => <td key={c.key} className="px-3 py-1.5"><div className="crm-cell">{cell(c.key, e)}</div></td>)}<td className="px-2 py-1.5 text-right">{menu(e)}</td></tr>))}{rows.length < PAGE_SIZE && totalPages > 1 && <tr aria-hidden="true" style={{ height: (PAGE_SIZE - rows.length) * 56 }}><td colSpan={shown.length + (perms.bulk ? 2 : 1)} /></tr>}</tbody></table>
             </div>
           )}
           {filtered.length > 0 && <div className="mt-4 rounded-2xl border border-ink-100 bg-white dark:border-ink-800 dark:bg-ink-900"><Pagination page={cur} totalPages={totalPages} onChange={setPage} total={filtered.length} pageSize={PAGE_SIZE} /></div>}
@@ -253,7 +265,7 @@ export default function Employees() {
       {dlg?.kind === 'delete' && <DeletePersonDialog employeeId={dlg.e.id} name={dlg.e.fullName} onClose={() => setDlg(null)} onDone={() => { setSelected((s) => { const n = new Set(s); n.delete(dlg.e.id); return n }); reload() }} />}
       {dlg?.kind === 'access' && <AccessDialog employee={dlg.e} onClose={() => { setDlg(null); reload() }} />}
       {dlg?.kind === 'bulk' && <BulkDialog ids={[...selected]} org={org} roles={[]} perms={perms} onClose={() => { setDlg(null); setSelected(new Set()) }} onDone={() => reload()} />}
-      {dlg?.kind === 'import' && <ImportDialog onClose={() => setDlg(null)} onDone={() => reload()} />}
+      {dlg?.kind === 'import' && <ImportDialog module="employees" onClose={() => setDlg(null)} onDone={() => reload()} />}
       {dlg?.kind === 'task' && <TaskFormDialog open onClose={() => setDlg(null)} preset={{ title: `Task for ${dlg.e.fullName}`, assignees: [dlg.e.id] }} onSaved={() => { toast(`Task assigned to ${dlg.e.fullName}.`, { type: 'success' }); setDlg(null); reload() }} />}
     </div>
   )

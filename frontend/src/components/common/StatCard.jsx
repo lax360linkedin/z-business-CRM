@@ -18,6 +18,7 @@ export function StatCard({ label, value, icon: Icon, change, changeLabel = 'vs l
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.25 }}
+      data-stat
       onClick={onClick}
       role={onClick ? 'button' : undefined}
       tabIndex={onClick ? 0 : undefined}
@@ -28,14 +29,14 @@ export function StatCard({ label, value, icon: Icon, change, changeLabel = 'vs l
       )}
     >
       <div className="flex items-center justify-between">
-        <p className="text-sm font-medium text-ink-500 dark:text-ink-400">{label}</p>
+        <p data-stat-label className="text-sm font-medium text-ink-500 dark:text-ink-400">{label}</p>
         {Icon && (
           <span className={clsx('flex h-9 w-9 items-center justify-center rounded-xl', toneStyles[tone])}>
             <Icon size={17} />
           </span>
         )}
       </div>
-      <p className="mt-3 text-2xl font-bold tracking-tight text-ink-900 dark:text-ink-50">{value}</p>
+      <p data-stat-value className="mt-3 text-2xl font-bold tracking-tight text-ink-900 dark:text-ink-50">{value}</p>
       {change !== undefined && (
         <div className="mt-2 flex items-center gap-1.5 text-xs">
           <span className={clsx('inline-flex items-center gap-0.5 font-semibold', positive ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400')}>

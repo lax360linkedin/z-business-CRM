@@ -3,6 +3,8 @@ import { useMemo, useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useForm } from 'react-hook-form'
 import { Plus, LifeBuoy, Loader2, CheckCircle2, Clock3 } from 'lucide-react'
+import { ExportMenu } from '../../components/common/ExportMenu'
+import { filterText } from '../../utils/exporter'
 import { PageHeader } from '../../components/common/PageHeader'
 import { StatCard } from '../../components/common/StatCard'
 import { SearchBar } from '../../components/common/SearchBar'
@@ -187,10 +189,18 @@ export default function Tickets() {
     { key: 'assignedStaff', label: 'Staff', options: staff.map((s) => ({ value: s.id, label: s.name })) },
   ]
 
+  // Export: every ticket that matches the search and filters on screen
+  const exportColumns = [
+    { label: 'Ticket ID', value: 'id' }, { label: 'Subject', value: 'subject' }, { label: 'Customer', value: 'customerName' }, { label: 'Company', value: 'companyName' }, { label: 'Category', value: 'category' },
+    { label: 'Priority', value: 'priority' }, { label: 'Status', value: 'status' }, { label: 'Assigned staff', value: (t) => getUserById(t.assignedStaff)?.name || '' }, { label: 'SLA', value: 'slaStatus' },
+    { label: 'Created', value: 'createdDate' }, { label: 'Due', value: (t) => String(t.dueDate || '').slice(0, 10) }, { label: 'Branch', value: 'branch' },
+  ]
+  const exportFilters = filterText({ search: crud.search, values: crud.filters, defs: filterDefs })
+
   const columns = [
-    { key: 'id', header: 'Ticket ID', sortable: true, className: 'font-medium text-ink-500 text-xs' },
+    { key: 'id', width: 110, header: 'Ticket ID', sortable: true, className: 'font-medium text-ink-500 text-xs' },
     {
-      key: 'customerName', header: 'Customer/Company', sortable: true,
+      key: 'customerName', width: 240, header: 'Customer/Company', sortable: true,
       render: (row) => (
          <div>
             <span className="block font-medium text-ink-800 dark:text-ink-100">{row.customerName || 'N/A'}</span>
@@ -199,13 +209,13 @@ export default function Tickets() {
       ),
     },
     {
-      key: 'subject', header: 'Subject',
+      key: 'subject', width: 260, header: 'Subject',
       render: (row) => <span className="line-clamp-1 max-w-[240px]" title={row.subject}>{row.subject}</span>,
     },
-    { key: 'category', header: 'Category', render: (row) => <Badge tone="info">{row.category}</Badge> },
-    { key: 'priority', header: 'Priority', render: (row) => <PriorityBadge priority={row.priority} /> },
+    { key: 'category', width: 140, header: 'Category', render: (row) => <Badge tone="info">{row.category}</Badge> },
+    { key: 'priority', width: 120, header: 'Priority', render: (row) => <PriorityBadge priority={row.priority} /> },
     {
-      key: 'assignedStaff', header: 'Assigned Staff',
+      key: 'assignedStaff', width: 190, header: 'Assigned Staff',
       render: (row) => {
         const u = getUserById(row.assignedStaff)
         return u ? (
@@ -216,8 +226,8 @@ export default function Tickets() {
         ) : <span className="text-sm text-ink-400">Unassigned</span>
       },
     },
-    { key: 'createdDate', header: 'Created', sortable: true, render: (row) => formatDate(row.createdDate) },
-    { key: 'status', header: 'Status', render: (row) => <StatusBadge status={row.status} /> },
+    { key: 'createdDate', width: 130, header: 'Created', sortable: true, render: (row) => formatDate(row.createdDate) },
+    { key: 'status', width: 130, header: 'Status', render: (row) => <StatusBadge status={row.status} /> },
   ]
 
   const createTicket = (newTicket) => {
@@ -232,7 +242,7 @@ export default function Tickets() {
       <PageHeader
         title="Helpdesk / Tickets"
         description="Track and resolve customer support requests."
-        actions={<Button icon={Plus} onClick={() => setCreateOpen(true)}>New Ticket</Button>}
+        actions={<><ExportMenu title="Tickets" noun="ticket" columns={exportColumns} rows={() => crud.allFiltered} filters={exportFilters} /><Button icon={Plus} onClick={() => setCreateOpen(true)}>New Ticket</Button></>}
       />
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">

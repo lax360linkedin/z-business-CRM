@@ -2,10 +2,7 @@ import { useOptions, asChoices } from '../../hooks/useOptions'
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import clsx from 'clsx'
-import {
-  Plus, Download, Upload, Trash2, Eye, Pencil, UserCog, ClipboardCheck, Handshake,
-  MoreVertical, X, Kanban, Table as TableIcon, XCircle, Ban,
-} from 'lucide-react'
+import { Plus, Upload, Trash2, Eye, Pencil, UserCog, ClipboardCheck, Handshake, MoreVertical, X, Kanban, Table as TableIcon, XCircle, Ban } from 'lucide-react'
 import { PageHeader } from '../../components/common/PageHeader'
 import { SearchBar } from '../../components/common/SearchBar'
 import { FilterPanel, FilterToggleButton } from '../../components/common/FilterPanel'
@@ -25,7 +22,11 @@ import { salesUsers, getUserById, USERS } from '../../data/users'
 import { getDataScope, matchesDataScope } from '../../data/dataScope'
 import { canTransition } from '../../data/leadWorkflow'
 import { formatDate, isOverdue } from '../../utils/format'
-import { downloadCsv, parseCsv } from '../../utils/csv'
+import { ExportMenu } from '../../components/common/ExportMenu'
+import { filterText } from '../../utils/exporter'
+import { ImportDialog } from '../../components/import/ImportDialog'
+import { TemplateButton } from '../../components/import/TemplateButton'
+import { useBranch } from '../../context/BranchContext'
 import { LeadFormModal } from './LeadFormModal'
 import { QualifyLeadModal } from './QualifyLeadModal'
 import { ConvertToDealModal } from './ConvertToDealModal'
@@ -202,9 +203,9 @@ export default function Leads() {
   }
 
   const columns = [
-    { key: 'id', header: 'Lead ID', sortable: true, className: 'font-medium text-ink-500 text-xs' },
+    { key: 'id', width: 110, header: 'Lead ID', sortable: true, className: 'font-medium text-ink-500 text-xs' },
     {
-      key: 'company', header: 'Company Name', sortable: true,
+      key: 'company', width: 230, header: 'Company Name', sortable: true,
       render: (row) => (
         <div className="flex items-center gap-2.5">
           <Avatar name={row.company} size="sm" />
@@ -213,7 +214,7 @@ export default function Leads() {
       ),
     },
     {
-      key: 'name', header: 'Contact Name', sortable: true,
+      key: 'name', width: 210, header: 'Contact Name', sortable: true,
       render: (row) => (
         <div>
           <p className="font-medium text-ink-800 dark:text-ink-100">{row.name}</p>
@@ -221,16 +222,16 @@ export default function Leads() {
         </div>
       ),
     },
-    { key: 'phone', header: 'Phone' },
-    { key: 'email', header: 'Email' },
-    { key: 'source', header: 'Lead Source' },
-    { key: 'service', header: 'Product/Service' },
-    { key: 'assignedTo', header: 'Assigned Salesperson', render: (row) => getUserById(row.assignedTo)?.name.split(' ')[0] || '—' },
-    { key: 'score', header: 'Lead Score', sortable: true },
-    { key: 'priority', header: 'Priority', render: (row) => <PriorityBadge priority={row.priority} /> },
-    { key: 'status', header: 'Status', render: (row) => <StatusBadge status={row.status} /> },
+    { key: 'phone', width: 150, header: 'Phone' },
+    { key: 'email', width: 240, header: 'Email' },
+    { key: 'source', width: 170, header: 'Lead Source' },
+    { key: 'service', width: 200, header: 'Product/Service' },
+    { key: 'assignedTo', width: 170, header: 'Assigned Salesperson', render: (row) => getUserById(row.assignedTo)?.name.split(' ')[0] || '—' },
+    { key: 'score', width: 120, header: 'Lead Score', sortable: true },
+    { key: 'priority', width: 120, header: 'Priority', render: (row) => <PriorityBadge priority={row.priority} /> },
+    { key: 'status', width: 140, header: 'Status', render: (row) => <StatusBadge status={row.status} /> },
     {
-      key: 'nextFollowUp', header: 'Next Follow-up', sortable: true,
+      key: 'nextFollowUp', width: 150, header: 'Next Follow-up', sortable: true,
       render: (row) => row.nextFollowUp ? <span className={isOverdue(row.nextFollowUp) ? 'font-medium text-rose-500' : ''}>{formatDate(row.nextFollowUp)}</span> : '—',
     },
     {
@@ -339,38 +340,27 @@ export default function Leads() {
     })
   }
 
-  const handleExport = () => {
-    downloadCsv('leads.csv', crud.allFiltered, [
-      { label: 'Lead ID', value: 'id' }, { label: 'Contact Name', value: 'name' }, { label: 'Company', value: 'company' },
-      { label: 'Designation', value: 'designation' }, { label: 'Email', value: 'email' }, { label: 'Phone', value: 'phone' },
-      { label: 'Industry', value: 'industry' }, { label: 'Location', value: 'location' }, { label: 'Source', value: 'source' },
-      { label: 'Source Detail', value: 'sourceDetail' }, { label: 'Campaign', value: 'campaign' },
-      { label: 'Service', value: 'service' }, { label: 'Budget', value: 'budget' }, { label: 'Status', value: 'status' },
-      { label: 'Priority', value: 'priority' }, { label: 'Score', value: 'score' },
-      { label: 'Assigned To', value: (r) => getUserById(r.assignedTo)?.name || '' },
-      { label: 'Created Date', value: 'createdDate' }, { label: 'Next Follow-up', value: 'nextFollowUp' },
-    ])
-    toast(`Exported ${crud.allFiltered.length} leads.`, { type: 'success' })
-  }
+  // Export: every lead that matches the search and filters on screen (all pages, not only the visible one), for the branch being viewed
+  const exportColumns = [
+    { label: 'Lead ID', value: 'id' }, { label: 'Contact Name', value: 'name' }, { label: 'Company', value: 'company' },
+    { label: 'Designation', value: 'designation' }, { label: 'Email', value: 'email' }, { label: 'Phone', value: 'phone' },
+    { label: 'Industry', value: 'industry' }, { label: 'Location', value: 'location' }, { label: 'Source', value: 'source' },
+    { label: 'Source Detail', value: 'sourceDetail' }, { label: 'Campaign', value: 'campaign' },
+    { label: 'Service', value: 'service' }, { label: 'Budget', value: (r) => Number(r.budget) || 0, align: 'right' }, { label: 'Status', value: 'status' },
+    { label: 'Priority', value: 'priority' }, { label: 'Score', value: (r) => Number(r.score) || 0, align: 'right' },
+    { label: 'Assigned To', value: (r) => getUserById(r.assignedTo)?.name || '' }, { label: 'Branch', value: 'branch' },
+    { label: 'Created Date', value: 'createdDate' }, { label: 'Next Follow-up', value: 'nextFollowUp' },
+  ]
+  const exportFilters = filterText({ search: crud.search, values: crud.filters, defs: filterDefs, extra: [['Created', [advanced.createdFrom, advanced.createdTo].some(Boolean) ? `${advanced.createdFrom || '…'} to ${advanced.createdTo || '…'}` : ''], ['Expected purchase', [advanced.purchaseFrom, advanced.purchaseTo].some(Boolean) ? `${advanced.purchaseFrom || '…'} to ${advanced.purchaseTo || '…'}` : ''], ['Follow-up', [advanced.followUpFrom, advanced.followUpTo].some(Boolean) ? `${advanced.followUpFrom || '…'} to ${advanced.followUpTo || '…'}` : ''], ['Score', [advanced.scoreMin, advanced.scoreMax].some(Boolean) ? `${advanced.scoreMin || '0'} to ${advanced.scoreMax || '100'}` : '']] })
 
-  // Each row goes through the same server rules as a single lead; the result says how many were accepted and how many were refused.
+  // Import: the file is read and every row checked (nothing saved) in the import dialog, which then saves the valid rows through the same server rules as the Add form and reports the rest.
+  const [importFile, setImportFile] = useState(null)
+  const { scope: branchScope, isAll } = useBranch()
+  const salesTeam = isAll ? [] : salesUsers().filter((u) => u.branch === branchScope && u.status === 'Active')
   const handleImport = (e) => {
     const file = e.target.files?.[0]
     e.target.value = ''
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = async () => {
-      const rows = parseCsv(String(reader.result))
-      const results = await Promise.allSettled(rows.map((r, i) => crud.create({
-        name: r.name || r.Name || 'Unnamed Lead', company: r.company || r.Company || '', designation: r.designation || '', email: r.email || r.Email || '', phone: r.phone || r.Phone || '',
-        website: r.website || '', industry: r.industry || '', location: r.location || '', source: 'Import', captureMethod: 'Import', service: r.service || r.Service || '',
-        requirement: r.requirement || 'Imported via CSV upload.', budget: Number(r.budget) || 0, assignedTo: reps.length ? reps[i % reps.length].id : undefined, status: 'New', priority: 'Medium',
-      })))
-      const ok = results.filter((x) => x.status === 'fulfilled').length
-      const failed = results.length - ok
-      toast(failed ? `Imported ${ok} of ${results.length} leads; ${failed} were refused (check those rows for a missing name or an invalid value).` : `Imported ${ok} leads.`, { type: failed ? 'warning' : 'success' })
-    }
-    reader.readAsText(file)
+    if (file) setImportFile(file)
   }
 
   return (
@@ -409,13 +399,15 @@ export default function Leads() {
                 <TableIcon size={15} /> Table View
               </button>
             </div>
-            {canCreate && <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={handleImport} />}
+            {canCreate && <input ref={fileRef} type="file" accept=".xlsx,.csv" className="hidden" onChange={handleImport} />}
             {canCreate && <Button variant="secondary" icon={Upload} onClick={() => fileRef.current?.click()}>Import</Button>}
-            {canExport && <Button variant="secondary" icon={Download} onClick={handleExport}>Export</Button>}
+            {canCreate && <TemplateButton module="leads" />}
+            {canExport && <ExportMenu title="Leads" noun="lead" columns={exportColumns} rows={() => crud.allFiltered} filters={exportFilters} permission={canExport} />}
             {canCreate && <Button icon={Plus} onClick={() => setCreateOpen(true)}>Add Lead</Button>}
           </>
         }
       />
+      {importFile && <ImportDialog module="leads" file={importFile} distribute={{ people: salesTeam }} onClose={() => setImportFile(null)} onDone={() => crud.refresh()} />}
 
       <div className="mb-3 flex flex-wrap gap-1.5">
         {STATUS_PILLS.map((s) => {

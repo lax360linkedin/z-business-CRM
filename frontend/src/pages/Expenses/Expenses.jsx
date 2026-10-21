@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
-import { Plus, Download, Wallet, CalendarCheck, CalendarDays, Clock3, CheckCircle2, XCircle, Banknote, AlertTriangle, X, Receipt, Users, Building2, FolderKanban, HandCoins, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react'
+import { Plus, Wallet, CalendarCheck, CalendarDays, Clock3, CheckCircle2, XCircle, Banknote, AlertTriangle, X, Receipt, Users, Building2, FolderKanban, HandCoins, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react'
+import { ExportMenu } from '../../components/common/ExportMenu'
+import { describeFilters, documentFromCsv } from '../../utils/exporter'
 import { PageHeader } from '../../components/common/PageHeader'
 import { SearchBar } from '../../components/common/SearchBar'
 import { FilterToggleButton } from '../../components/common/FilterPanel'
@@ -14,7 +16,7 @@ import { Pagination } from '../../components/common/Pagination'
 import { useToast } from '../../context/ToastContext'
 import { EXPENSE_STATUSES, EXPENSE_KINDS, KIND_LABEL, expenseMetrics, todayKey } from '../../utils/expenseRules'
 import { formatCurrency, formatDate } from '../../utils/format'
-import { downloadBlob } from '../Invoices/invoiceClient'
+
 import { useExpenses, useExpenseConfig, useVendors, exportExpensesCsv, expErr } from './expenseClient'
 import { ExpenseFormDialog } from './ExpenseFormDialog'
 import { VendorsTab, CategoriesTab, PolicyTab } from './ExpenseManage'
@@ -24,7 +26,7 @@ const sel = 'h-9 w-full rounded-lg border border-ink-200 bg-white px-2.5 text-xs
 const PAGE_SIZE = 12
 const TONE = { emerald: 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30', brand: 'bg-brand-50 text-brand-600 dark:bg-brand-900/30', amber: 'bg-amber-50 text-amber-600 dark:bg-amber-900/30', rose: 'bg-rose-50 text-rose-600 dark:bg-rose-900/30', sky: 'bg-sky-50 text-sky-600 dark:bg-sky-900/30', violet: 'bg-violet-50 text-violet-600 dark:bg-violet-900/30' }
 const link = 'font-medium text-brand-600 hover:underline dark:text-brand-400'
-const COLS = 'xl:grid-cols-[1.1fr_1.6fr_1fr_1.2fr_1.2fr_6rem_6.5rem_6.5rem]'
+const COLS = 'xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1.2fr)_6rem_6.5rem_6.5rem]'
 const PAY_STATUSES = ['Unpaid', 'Partially Paid', 'Paid', 'Reimbursement pending', 'Partly reimbursed', 'Reimbursed', 'Not approved yet', 'Not payable']
 const uniq = (rows, id, label) => [...new Map(rows.filter((r) => r[id]).map((r) => [r[id], r[label] || r[id]])).entries()].sort((a, b) => String(a[1]).localeCompare(String(b[1])))
 
@@ -73,7 +75,12 @@ export default function Expenses() {
   const rows = filtered.slice((cur - 1) * PAGE_SIZE, cur * PAGE_SIZE)
   const active = Object.entries(f).filter(([, v]) => v !== '' && v !== 'all').length
   const toggle = (key) => setSort((s) => (s.key === key ? { key, dir: s.dir === 'asc' ? 'desc' : 'asc' } : { key, dir: key === 'total' || key === 'date' ? 'desc' : 'asc' }))
-  const exportCsv = () => exportExpensesCsv().then((csv) => { downloadBlob(new Blob([csv], { type: 'text/csv;charset=utf-8' }), 'expenses.csv'); toast('Expenses exported.', { type: 'success' }) }).catch((e) => toast(expErr(e), { type: 'error' }))
+  // Export: the server's expense register (Export right checked and audited there); only the expenses matching the tab, search and filters on screen are kept
+  const exportFilters = describeFilters([
+    ['Tab', tab !== 'expenses' && (tab === 'approvals' ? 'Approvals' : 'To pay')], ['Search', search.trim() && `"${search.trim()}"`], ['Status', f.status], ['Type', f.kind], ['Category', f.category], ['Vendor', f.vendor],
+    ['Employee', f.employee], ['Customer', f.customer], ['Company', f.company], ['Project', f.project], ['From', f.from], ['To', f.to], ['Amount from', f.min], ['Amount to', f.max],
+  ])
+  const exportDoc = async (_format, ctx) => documentFromCsv({ title: 'Expenses', csv: await exportExpensesCsv(), keep: new Set(filtered.map((e) => e.number)), filters: exportFilters, ...ctx })
   const Sort = ({ k, children, right }) => <button type="button" onClick={() => toggle(k)} className={clsx('inline-flex items-center gap-1 uppercase hover:text-ink-800', right && 'justify-end')}>{children}{sort.key === k ? (sort.dir === 'asc' ? <ChevronUp size={12} /> : <ChevronDown size={12} />) : <ArrowUpDown size={11} className="opacity-40" />}</button>
 
   if (error) return <EmptyState icon={AlertTriangle} title="Couldn’t load expenses" description={error} action={<Button variant="secondary" onClick={reload}>Try again</Button>} />
@@ -85,7 +92,7 @@ export default function Expenses() {
   const tabs = [{ value: 'expenses', label: 'Expenses', count: (expenses || []).length }, { value: 'approvals', label: 'Approvals', count: queue.length }, ...(toPay.length ? [{ value: 'payable', label: 'To pay', count: toPay.length }] : []), { value: 'vendors', label: 'Vendors' }, { value: 'categories', label: 'Categories' }, { value: 'policy', label: 'Policy' }]
   return (
     <div>
-      <PageHeader title="Expenses" description="Money the business spends — vendor bills, employee claims and company costs. Kept separate from customer invoices and payments (revenue)." actions={<>{perms.export && <Button variant="secondary" icon={Download} onClick={exportCsv}>Export</Button>}{perms.create && <Button icon={Plus} onClick={() => setFormOpen(true)}>New expense</Button>}</>} />
+      <PageHeader title="Expenses" description="Money the business spends — vendor bills, employee claims and company costs. Kept separate from customer invoices and payments (revenue)." actions={<><ExportMenu title="Expenses" noun="expense" permission={perms.export} getDocument={exportDoc} />{perms.create && <Button icon={Plus} onClick={() => setFormOpen(true)}>New expense</Button>}</>} />
       {!expenses ? <div className="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">{Array.from({ length: 6 }).map((_, i) => <CardSkeleton key={i} className="h-20" />)}</div> : (
         <>
           <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">

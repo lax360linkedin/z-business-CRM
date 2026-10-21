@@ -75,3 +75,10 @@ export function useCollections(...names) {
   }, [key])
   return tick
 }
+
+/** Re-fetches every collection a mounted screen is using (the Refresh button). Resolves when they have all answered. */
+export function reloadMounted() {
+  const jobs = []
+  meta.forEach((m, name) => { if (m.refs > 0) jobs.push(load(name, { force: true })) })
+  return Promise.all(jobs)
+}

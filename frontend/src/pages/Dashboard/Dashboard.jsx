@@ -1,4 +1,5 @@
-import { useMemo } from 'react'
+import { useMemo, useRef } from 'react'
+import { PageExport } from '../../components/common/PageExport'
 import { useNavigate } from 'react-router-dom'
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid,
@@ -56,6 +57,7 @@ function tooltipStyle() {
 }
 
 export default function Dashboard() {
+  const root = useRef(null)
   const { names: sourceNames } = useLeadSources()
   const { data, loading } = useDashboardData()
   const MONTHLY_PERFORMANCE = useMonthlyPerformance()
@@ -290,21 +292,21 @@ export default function Dashboard() {
   const KIND_ICON = { Task: CalendarClock, 'Follow-up': Phone }
 
   return (
-    <div>
+    <div ref={root}>
       <PageHeader
         title={`Welcome back, ${user?.name?.split(' ')[0]}`}
         description={isAll ? "Here's what's happening across your business today." : `Here's what's happening in the ${branchLabel} branch today.`}
-        actions={<Button variant="secondary" onClick={() => navigate('/reports/sales')}>View Full Reports</Button>}
+        actions={<><PageExport rootRef={root} title="Dashboard" subtitle={isAll ? 'Business overview across all branches' : `Business overview for the ${branchLabel} branch`} /><Button variant="secondary" onClick={() => navigate('/reports/sales')}>View Full Reports</Button></>}
       />
 
       {isGlobal && isAll && (
         <section className="mb-5 overflow-hidden rounded-2xl border border-ink-100 bg-white shadow-card dark:border-ink-800 dark:bg-ink-900" aria-label="Branch comparison">
           <div className="flex items-center justify-between border-b border-ink-100 px-5 py-3 dark:border-ink-800">
             <h2 className="text-sm font-semibold text-ink-900 dark:text-ink-50">Branch comparison</h2>
-            <Button size="sm" variant="ghost" onClick={() => navigate('/branches')}>Branch management</Button>
+            <Button size="sm" variant="ghost" onClick={() => navigate('/administration/branches')}>Branch management</Button>
           </div>
           <div className="scrollbar-thin overflow-x-auto">
-            <table className="w-full min-w-[760px] border-collapse text-sm">
+            <table className="crm-table w-full min-w-[760px] border-collapse text-sm">
               <thead><tr className="bg-ink-50/60 dark:bg-ink-800/40">
                 <th className="px-4 py-2 text-left text-xs font-semibold uppercase tracking-wide text-ink-500">Branch</th>
                 {SUMMARY_COLUMNS.map(([k, l]) => <th key={k} className="px-3 py-2 text-right text-xs font-semibold uppercase tracking-wide text-ink-500">{l}</th>)}
