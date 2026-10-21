@@ -136,7 +136,7 @@ export default function TaskDetail() {
   useEffect(() => { setState('loading'); setD(null); load() }, [load])
   useOnTasksChanged(load)
   const actions = useTaskActions({ onChanged: load })
-  const { me } = useTaskMeta()
+  const { me, meta } = useTaskMeta()
 
   const task = d?.task
   const people = d?.people || {}
@@ -176,6 +176,9 @@ export default function TaskDetail() {
   const open = isOpenTask(task)
   const run = actions.run
   const rec = task.recurrence?.frequency !== 'none' ? task.recurrence : null
+  const rem = meta?.settings?.reminders
+  const ago = (m) => (m >= 1440 && m % 1440 === 0 ? `${m / 1440} day${m === 1440 ? '' : 's'}` : m >= 60 && m % 60 === 0 ? `${m / 60} hour${m === 60 ? '' : 's'}` : `${m} min`)
+  const autoReminderText = !task.dueDate ? 'No due date' : !rem || rem.enabled === false || !rem.intervals?.length ? 'Off' : `${rem.intervals.map(ago).join(', ')} before due${task.dueReminders?.done?.length ? ` · ${task.dueReminders.done.length} handled` : ''}`
   const reminderText = task.reminderAt ? `${REMINDER_OPTIONS.find((o) => o.value === task.reminderMinutes)?.label || 'Custom'} · ${formatDateTime(task.reminderAt)}${task.remindedAt ? ' (sent)' : ''}` : 'None'
   const loggable = !!actions.canLog(task)
 
@@ -231,6 +234,7 @@ export default function TaskDetail() {
                 <Row label="Start date">{task.startDate ? formatDate(task.startDate) : '—'}</Row>
                 <Row label="Due date">{task.dueDate ? `${formatDate(task.dueDate)}${task.dueTime ? ` · ${task.dueTime}` : ''}` : '—'}</Row>
                 <Row label="Reminder">{reminderText}</Row>
+                <Row label="Auto reminders">{autoReminderText}</Row>
                 <Row label="Visibility">{task.visibility}</Row>
               </div>
             </dl>

@@ -4,11 +4,13 @@ import re
 from dataclasses import dataclass
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import and_, case, delete, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.api.deps import Principal
+from app.core.config import get_settings
 from app.core.errors import ApiError, conflict, forbidden, invalid, not_found
 from app.db import ids
 from app.models import (Activity, AppSetting, Campaign, Company, Contact, Contract, Customer, Deal, Document, Employee, Enquiry, Expense, Invoice, Lead, Payment, Product, Project, Proposal, Quotation, SalesOrder,
@@ -47,6 +49,9 @@ DEFAULT_AUTOMATION = {
     "leadContacted": {"enabled": True, "label": "Lead contacted → suggest next follow-up", "suggestOnly": True},
     "taskOverdue": {"enabled": True, "label": "Task overdue → notify owner and manager", "notifyManager": True},
 }
+# Due-date reminders every assigned person gets before a task is due (minutes before the due moment). The administrator can switch each one on or off in Task settings.
+REMINDER_CHOICES = (2880, 1440, 720, 300, 180, 60, 30, 15)
+DEFAULT_REMINDERS = {"enabled": True, "intervals": [1440, 300, 60]}
 UPLOAD_RULES = {"maxBytes": 1048576, "extensions": ["pdf", "doc", "docx", "xls", "xlsx", "csv", "txt", "png", "jpg", "jpeg"], "maxPerTask": 10}
 
 # task related-record types -> (model, label attribute, link key)
@@ -80,8 +85,36 @@ def iso(dt: datetime | None = None) -> str:
     return (dt or datetime.now(UTC)).astimezone(UTC).isoformat().replace("+00:00", "Z")
 
 
+def org_tz() -> ZoneInfo:
+    return ZoneInfo(get_settings().org_timezone)
+
+
 def today() -> str:
-    return date.today().isoformat()
+    return datetime.now(UTC).astimezone(org_tz()).date().isoformat()
+
+
+def nice_due(d: date | None, t: str | None = None) -> str:
+    """'Fri 24 Oct 2026, 5:00 PM' (or just the date when the task has no time)."""
+    if not d:
+        return "no due date"
+    out = f"{d.strftime('%a')} {d.day} {d.strftime('%b %Y')}"
+    if t:
+        hh, mm = (int(x) for x in t.split(":")[:2])
+        out += f", {hh % 12 or 12}:{mm:02d} {'AM' if hh < 12 else 'PM'}"
+    return out
+
+
+def remaining_text(delta: timedelta) -> str:
+    """'1 day 2 hours', '4 hours 30 minutes', '45 minutes' - what is left before the due moment."""
+    minutes = max(0, int(delta.total_seconds() // 60))
+    days, rest = divmod(minutes, 1440)
+    hours, mins = divmod(rest, 60)
+    plural = lambda n, w: f"{n} {w}{'' if n == 1 else 's'}"  # noqa: E731
+    if days:
+        return plural(days, "day") + (f" {plural(hours, 'hour')}" if hours else "")
+    if hours:
+        return plural(hours, "hour") + (f" {plural(mins, 'minute')}" if mins else "")
+    return plural(max(mins, 1), "minute")
 
 
 # ---- settings & permissions ----------------------------------------------------------------------------------------------
@@ -90,7 +123,16 @@ def settings(db: Session) -> dict:
     stored = row.value if row else {}
     automation = {k: {**v, **(stored.get("automation", {}).get(k) or {})} for k, v in DEFAULT_AUTOMATION.items()}
     return {"id": "default", "permissions": stored.get("permissions", {}), "automation": automation, "uploadRules": {**UPLOAD_RULES, **stored.get("uploadRules", {})},
-            "managerNotifyOverdueDays": stored.get("managerNotifyOverdueDays", 3), "notifyManagerOnReminder": bool(stored.get("notifyManagerOnReminder")), "updatedAt": stored.get("updatedAt")}
+            "managerNotifyOverdueDays": stored.get("managerNotifyOverdueDays", 3), "notifyManagerOnReminder": bool(stored.get("notifyManagerOnReminder")), "reminders": reminder_settings(stored.get("reminders")),
+            "updatedAt": stored.get("updatedAt")}
+
+
+def reminder_settings(stored: dict | None) -> dict:
+    """The standard due-date reminders: switched on/off as a whole, and which intervals (minutes before the due moment) are used - only the offered choices, longest first."""
+    stored = stored if isinstance(stored, dict) else {}
+    wanted = stored.get("intervals", DEFAULT_REMINDERS["intervals"])
+    intervals = sorted({int(m) for m in wanted if str(m).isdigit() and int(m) in REMINDER_CHOICES}, reverse=True) if isinstance(wanted, list) else list(DEFAULT_REMINDERS["intervals"])
+    return {"enabled": bool(stored.get("enabled", True)), "intervals": intervals, "choices": list(REMINDER_CHOICES)}
 
 
 def perms_of(db: Session, actor: Actor, module: dict | None = None) -> dict:
@@ -121,7 +163,7 @@ def is_open(task: Task) -> bool:
 def due_dt(task: Task) -> datetime | None:
     if not task.due_date:
         return None
-    return datetime.fromisoformat(f"{task.due_date.isoformat()}T{task.due_time or '23:59'}:00").replace(tzinfo=UTC)
+    return datetime.fromisoformat(f"{task.due_date.isoformat()}T{task.due_time or '23:59'}:00").replace(tzinfo=org_tz())
 
 
 def is_overdue(task: Task, now: datetime | None = None) -> bool:
@@ -130,7 +172,7 @@ def is_overdue(task: Task, now: datetime | None = None) -> bool:
 
 
 def days_late(task: Task, now: datetime) -> int:
-    return (now.date() - task.due_date).days
+    return (now.astimezone(org_tz()).date() - task.due_date).days
 
 
 def overdue_level(task: Task, now: datetime) -> int:
@@ -152,7 +194,7 @@ def reminder_at(due: str | None, due_time: str | None, minutes: str | None, cust
         return datetime.fromisoformat(custom.replace("Z", "+00:00")) if custom else None
     if not due or not minutes:
         return None
-    return datetime.fromisoformat(f"{due}T{due_time or '09:00'}:00").replace(tzinfo=UTC) - timedelta(minutes=int(minutes))
+    return datetime.fromisoformat(f"{due}T{due_time or '09:00'}:00").replace(tzinfo=org_tz()) - timedelta(minutes=int(minutes))
 
 
 def next_occurrence(due: date, rec: dict) -> date | None:
@@ -260,9 +302,32 @@ def names_of(db: Session, ids_: list[str | None] | None = None) -> dict:
     return {row[0]: row[1] for row in db.execute(stmt).all()}
 
 
-def alert(db: Session, recipients: list[str | None], task: Task, type: str, message: str, actor_id: str | None) -> None:
-    for emp in {r for r in recipients if r and r != actor_id}:
-        timeline.notify(db, user_id=emp, message=message, type=type, related_type="Task", related_id=task.id, branch=task.branch, task_id=task.id)
+def alert(db: Session, recipients: list[str | None], task: Task, type: str, message: str, actor_id: str | None, key: str | None = None) -> int:
+    """One in-app notification per recipient (never the person who made the change). `key` identifies the event: the same event is never notified twice to the same person. The
+    notification carries the recipient's own branch, so it is visible to them wherever the task was raised. Returns how many were created."""
+    wanted = [r for r in dict.fromkeys(recipients) if r and r != actor_id]
+    if not wanted:
+        return 0
+    home = {i: b for i, b in db.execute(select(Employee.id, Employee.branch).where(Employee.id.in_(wanted))).all()}
+    made = 0
+    for emp in wanted:
+        if timeline.notify(db, user_id=emp, message=message, type=type, related_type="Task", related_id=task.id, branch=home.get(emp) or task.branch, task_id=task.id, dedupe_key=key):
+            made += 1
+    return made
+
+
+def assignment_message(actor_name: str, task: Task) -> str:
+    article = "an" if task.priority[:1].lower() in "aeiou" else "a"
+    return f"{actor_name} assigned you {article} {task.priority}-priority task: “{task.title}” - due {nice_due(task.due_date, task.due_time)}"
+
+
+def check_same_branch(db: Session, branch: str | None, ids_: list[str]) -> None:
+    """A task belongs to one branch and can only be given to people of that branch (a person of another branch could neither open it nor be told about it)."""
+    if not branch or not ids_:
+        return
+    outside = [name for name, b in db.execute(select(Employee.full_name, Employee.branch).where(Employee.id.in_(ids_))).all() if b and b != branch]
+    if outside:
+        raise invalid(f"{', '.join(outside)} work{'s' if len(outside) == 1 else ''} in another branch. A task can only be assigned to people of its own branch ({branch}).", {"assignees": "Pick people of this task's branch."})
 
 
 def decorate(actor: Actor, perms: dict, task: Task, subs: dict[str, tuple[int, int]]) -> dict:
@@ -312,13 +377,15 @@ def active_employee_ids(db: Session, wanted: list[str]) -> list[str]:
     return [i for i in wanted if i in found]
 
 
-def expand_team(db: Session, team: dict | None) -> list[str]:
+def expand_team(db: Session, team: dict | None, branch: str | None = None) -> list[str]:
     if not team or not team.get("value"):
         return []
     if team.get("kind") == "role":
         stmt = select(User.employee_id).where(User.job_role == team["value"], User.status == "Active")
     else:
         stmt = select(User.employee_id).where(User.department == team["value"], User.status == "Active")
+    if branch:
+        stmt = stmt.where(User.branch == branch)
     return [r[0] for r in db.execute(stmt).all()]
 
 
@@ -371,6 +438,7 @@ def create_task(db: Session, actor: Actor, perms: dict, data: dict, *, branch: s
             raise invalid("Subtasks cannot have their own subtasks.", {"parentId": "Only one level of subtasks."})
         if not actor.system:
             guard(db, actor, perms, parent, "edit")
+    task_branch = rel.get("branch") or (parent.branch if parent else None) or branch
     assignees = None
     if data.get("assignees") is not None:
         assignees = active_employee_ids(db, list(data["assignees"]))
@@ -378,11 +446,13 @@ def create_task(db: Session, actor: Actor, perms: dict, data: dict, *, branch: s
             raise invalid("One of the selected users is not an active user.", {"assignees": "Pick active users only."})
     team = data.get("assignedTeam") if isinstance(data.get("assignedTeam"), dict) and data["assignedTeam"].get("value") else None
     if team and not assignees:
-        assignees = expand_team(db, team)
+        assignees = expand_team(db, team, task_branch)
     if assignees is None:
         assignees = [] if actor.system else [actor.id]
     if not actor.system and any(a != actor.id for a in assignees) and not perms["assign"]:
         raise forbidden("You do not have permission to assign tasks to other people.")
+    if not actor.system:
+        check_same_branch(db, task_branch, assignees)
     links = {**(rel["links"] or {}), **{k: v for k, v in (data.get("links") or {}).items() if k in ("productId", "campaignId", "projectId") and k not in (rel["links"] or {})}} if rel["links"] or not parent else dict((parent.attributes or {}).get("links") or {})
     watchers = [w for w in active_employee_ids(db, list(data.get("watchers") or [])) if w not in assignees]
     rec_in = data.get("recurrence") or {}
@@ -401,7 +471,6 @@ def create_task(db: Session, actor: Actor, perms: dict, data: dict, *, branch: s
     if automation_key and db.execute(select(Task.id).where(Task.automation_key == automation_key)).first():
         raise conflict("Automation already created this task.")
 
-    task_branch = rel.get("branch") or (parent.branch if parent else None) or branch
     task = Task(
         id=ids.new_id(db, "TSK", 5), title=title, description=str(data.get("description") or "").strip(), task_type=data.get("taskType") or "General", priority=data.get("priority") or "Medium", status="To Do",
         start_date=date.fromisoformat(data["startDate"]) if data.get("startDate") else None, due_date=date.fromisoformat(data["dueDate"]) if data.get("dueDate") else None, due_time=data.get("dueTime") or None,
@@ -419,11 +488,11 @@ def create_task(db: Session, actor: Actor, perms: dict, data: dict, *, branch: s
     db.flush()
     sync_people(db, task)
     log_event(db, task.id, actor, "Created", message or (f"Subtask created under {parent.id}" if parent else "Task created"), to=title)
-    if assignees:
-        log_event(db, task.id, actor, "Assigned", f"Assigned to {', '.join(names_of(db, assignees).get(a, a) for a in assignees)}")
+    assigned_event = log_event(db, task.id, actor, "Assigned", f"Assigned to {', '.join(names_of(db, assignees).get(a, a) for a in assignees)}") if assignees else None
     if parent:
         log_event(db, parent.id, actor, "Subtask Added", f"Subtask added: {title}", to=task.id)
-    alert(db, assignees, task, "Task Assigned", f"{actor.name} assigned you: {title}", actor.id)
+    if assigned_event is not None:  # tell each assignee (not the person who made the assignment): who assigned it, the title, the priority and when it is due; once per assignment event
+        alert(db, assignees, task, "Task Assigned", assignment_message(actor.name, task), actor.id, key=f"task-assign:{task.id}:{assigned_event.id}")
     # keep the linked record's follow-up bookkeeping in step
     if rel["relatedType"] and task.due_date and task.task_type in CONTACT_TYPES:
         model = RELATED[rel["relatedType"]][0]
@@ -444,6 +513,10 @@ def edit_task(db: Session, actor: Actor, perms: dict, task: Task, data: dict) ->
     merged = {**to_json(task), **data}
     validate({**merged, "recurrence": data.get("recurrence", (task.attributes or {}).get("recurrence"))})
     events: list[tuple[str, str, dict]] = []
+    changes: list[str] = []  # what the people already on the task are told about (priority, due date)
+    before_assignees = people(task, "assignees")
+    notify_new: list[str] = []  # people newly given the task
+    notify_dropped: list[str] = []
 
     for field, label in (("title", "Title"), ("description", "Description")):
         if field in data:
@@ -464,6 +537,7 @@ def edit_task(db: Session, actor: Actor, perms: dict, task: Task, data: dict) ->
         if not perms["changePriority"]:
             raise forbidden("You do not have permission to change the priority.")
         events.append(("Priority Changed", f"Priority changed to {data['priority']}", {"field": "priority", "from": task.priority, "to": data["priority"]}))
+        changes.append(f"priority {task.priority} → {data['priority']}")
         task.priority = data["priority"]
     due_changed = ("dueDate" in data and (data["dueDate"] or None) != (task.due_date.isoformat() if task.due_date else None)) or ("dueTime" in data and (data["dueTime"] or None) != task.due_time)
     old_due = (task.due_date, task.due_time)
@@ -473,8 +547,10 @@ def edit_task(db: Session, actor: Actor, perms: dict, task: Task, data: dict) ->
         new_due = date.fromisoformat(data["dueDate"]) if data.get("dueDate") else (None if "dueDate" in data else task.due_date)
         new_time = (data.get("dueTime") or None) if "dueTime" in data else task.due_time
         task.due_date, task.due_time = new_due, new_time
-        set_attrs(task, overdueNotified=None)
+        # a new due moment starts over: the overdue alerts and the standard reminders are recalculated, and only reminders that are still ahead of us (from now) will be sent
+        set_attrs(task, overdueNotified=None, dueReminders=None, dueChangedAt=iso())
         events.append(("Due Date Changed", "Due date changed", {"field": "dueDate", "from": _fmt(old_due[0], old_due[1]), "to": _fmt(new_due, new_time)}))
+        changes.append(f"due date {nice_due(old_due[0], old_due[1])} → {nice_due(new_due, new_time)}")
     if due_changed or "reminderMinutes" in data or "customReminderAt" in data:
         minutes = data.get("reminderMinutes", task.reminder_minutes)
         custom = data.get("customReminderAt", (task.attributes or {}).get("customReminderAt"))
@@ -512,27 +588,36 @@ def edit_task(db: Session, actor: Actor, perms: dict, task: Task, data: dict) ->
         if data.get("assignees") is not None and len(nxt) != len(set(data["assignees"])):
             raise invalid("One of the selected users is not an active user.")
         if team and not nxt:
-            nxt = expand_team(db, team)
+            nxt = expand_team(db, team, task.branch)
         prev = people(task, "assignees")
         if set(prev) != set(nxt):
             self_claim = not prev and nxt == [actor.id] and perms["edit"]
             if (not perms["reassign"]) if prev else not (perms["assign"] or self_claim):
                 raise forbidden("You do not have permission to reassign tasks." if prev else "You do not have permission to assign tasks.")
+            check_same_branch(db, task.branch, nxt)
             names = names_of(db)
             set_attrs(task, assignees=nxt, assignedTeam={"kind": "role" if team and team.get("kind") == "role" else "department", "value": team["value"]} if team else None)
             task.assigned_to = nxt[0] if nxt else None
             events.append(("Reassigned" if prev else "Assigned", f"{'Reassigned' if prev else 'Assigned'} to {', '.join(names.get(i, i) for i in nxt) or 'nobody'}",
                            {"field": "assignees", "from": ", ".join(names.get(i, i) for i in prev) or "Unassigned", "to": ", ".join(names.get(i, i) for i in nxt) or "Unassigned", "reason": str(data.get("reason") or "")[:300] or None}))
-            alert(db, [i for i in nxt if i not in prev], task, "Task Assigned", f"{actor.name} assigned you: {task.title}", actor.id)
-            alert(db, [i for i in prev if i not in nxt], task, "Task Assigned", f"{actor.name} reassigned “{task.title}”", actor.id)
+            notify_new = [i for i in nxt if i not in prev]
+            notify_dropped = [i for i in prev if i not in nxt]
     if not events and not db.dirty:
         return task
     db.flush()
     sync_people(db, task)
-    for type_, message, extra in events:
-        log_event(db, task.id, actor, type_, message, **extra)
-    if due_changed and not any(e[0] == "Reassigned" for e in events):
-        alert(db, people(task, "assignees"), task, "Task Assigned", f"{actor.name} rescheduled “{task.title}” to {_fmt(task.due_date, task.due_time)}", actor.id)
+    logged = [log_event(db, task.id, actor, type_, message, **extra) for type_, message, extra in events]
+    db.flush()
+    # notifications: each is tied to the event that caused it, so the same change is never announced twice to the same person
+    assign_event = next((e for e in logged if e.type in ("Assigned", "Reassigned")), None)
+    if assign_event is not None:
+        alert(db, notify_new, task, "Task Assigned", assignment_message(actor.name, task), actor.id, key=f"task-assign:{task.id}:{assign_event.id}")
+        alert(db, notify_dropped, task, "Task Updated", f"{actor.name} reassigned “{task.title}” to someone else - it is no longer on your list.", actor.id, key=f"task-unassign:{task.id}:{assign_event.id}")
+    if changes:
+        stay = [i for i in people(task, "assignees") if i in before_assignees]  # people newly assigned already got the full assignment message
+        change_event = next((e for e in logged if e.type in ("Priority Changed", "Due Date Changed")), None)
+        alert(db, stay, task, "Task Updated", f"{actor.name} changed “{task.title}”: {'; '.join(changes)}. Now {task.priority} priority, due {nice_due(task.due_date, task.due_time)}.", actor.id,
+              key=f"task-update:{task.id}:{change_event.id}" if change_event else None)
     if due_changed and task.activity_id:
         activity = db.get(Activity, task.activity_id)
         if activity is not None and task.due_date:
@@ -738,6 +823,59 @@ def managers_of(db: Session, task: Task) -> list[str]:
     return [r[0] for r in rows if (r[2] == "Admin" or r[1] in MANAGER_ROLES) and r[0] not in people(task, "assignees")]
 
 
+def interval_label(minutes: int) -> str:
+    """1440 -> '1 day', 300 -> '5 hours', 60 -> '1 hour', 30 -> '30 minutes'."""
+    unit, size = ("day", 1440) if minutes >= 1440 and minutes % 1440 == 0 else ("hour", 60) if minutes >= 60 and minutes % 60 == 0 else ("minute", 1)
+    n = minutes // size
+    return f"{n} {unit}{'' if n == 1 else 's'}"
+
+
+def due_reminders(db: Session, now: datetime, st: dict) -> int:
+    """The standard due-date reminders (1 day, 5 hours and 1 hour before, as set in Task settings), sent in-app to the people the task is assigned to.
+
+    * based on the task's real due moment (its date and time in the organisation's time zone; a task with no time is due at the end of that day);
+    * only reminders still ahead when the due moment was set: a task raised 40 minutes before it is due never gets the 1-day or 5-hour reminder;
+    * if the engine was not running at the exact moment, the reminder is sent as soon as it runs, saying how much time is really left - and only the closest applicable one is sent
+      (the longer ones that were also missed are marked done, not sent late);
+    * every reminder goes out once per task, person and interval (recorded on the task and as a notification key); changing the due date starts over and drops the old ones;
+    * a task that is completed, cancelled or already overdue gets none."""
+    cfg = st["reminders"]
+    if not cfg["enabled"] or not cfg["intervals"]:
+        return 0
+    made = 0
+    for t in db.execute(select(Task).where(Task.status.in_(OPEN), Task.due_date.is_not(None))).scalars().all():
+        due = due_dt(t)
+        assignees = people(t, "assignees")
+        if due is None or due <= now or not assignees:
+            continue
+        due_key = f"{t.due_date}T{t.due_time or ''}"
+        state = (t.attributes or {}).get("dueReminders")
+        if not state or state.get("due") != due_key:
+            changed = (t.attributes or {}).get("dueChangedAt")
+            if state:  # the due moment was changed by some other route than the edit form: start over from now
+                armed_at = now
+            else:
+                armed_at = datetime.fromisoformat(changed.replace("Z", "+00:00")) if changed else (t.created_at or now)
+            state = {"due": due_key, "armedAt": iso(armed_at), "done": []}
+        armed_at = datetime.fromisoformat(state["armedAt"].replace("Z", "+00:00"))
+        # the intervals that apply to this task: their moment is after the due date was set (or the task was made) and is not the task's own custom reminder
+        pending = [m for m in cfg["intervals"] if due - timedelta(minutes=m) > armed_at and str(m) != (t.reminder_minutes or "") and m not in state["done"]]
+        reached = sorted(m for m in pending if due - timedelta(minutes=m) <= now)  # smallest = closest to the due moment
+        if not reached:
+            if state != (t.attributes or {}).get("dueReminders"):
+                set_attrs(t, dueReminders=state)
+            continue
+        send = reached[0]
+        message = f"Reminder: “{t.title}” is due in {remaining_text(due - now)} ({nice_due(t.due_date, t.due_time)}). {t.priority} priority."
+        sent = alert(db, assignees, t, "Task Reminder", message, None, key=f"task-remind:{t.id}:{due_key}:{send}")
+        state["done"] = sorted({*state["done"], *reached})
+        set_attrs(t, dueReminders=state)
+        if sent:
+            log_event(db, t.id, SYSTEM, "Reminder Triggered", f"{interval_label(send)} reminder sent in-app to the assignee")
+        made += sent
+    return made
+
+
 def run_engine(db: Session, now: datetime | None = None) -> dict:
     """Reminders, overdue alerts and the automatic follow-up tasks. Idempotent: every effect is recorded so a rerun does nothing twice."""
     now = now or datetime.now(UTC)
@@ -751,6 +889,7 @@ def run_engine(db: Session, now: datetime | None = None) -> dict:
         t.reminded_at = now
         log_event(db, t.id, SYSTEM, "Reminder Triggered", "Reminder sent in-app to the assignee")
         out["reminders"] += 1
+    out["dueReminders"] = due_reminders(db, now, st)
     if st["automation"]["taskOverdue"]["enabled"]:
         for t in db.execute(select(Task).where(Task.status.in_(OPEN), Task.due_date.is_not(None))).scalars().all():
             level = overdue_level(t, now)
@@ -763,11 +902,13 @@ def run_engine(db: Session, now: datetime | None = None) -> dict:
                 if lv <= level:
                     done[str(lv)] = iso(now)
             label = overdue_label(t, now)
-            alert(db, people(t, "assignees"), t, "Task Overdue", f"“{t.title}” — {label}", None)
+            due_key = f"{t.due_date}T{t.due_time or ''}:{level}"
+            message = f"“{t.title}” is overdue ({label}): it was due {nice_due(t.due_date, t.due_time)}. {t.priority} priority."
+            alert(db, people(t, "assignees"), t, "Task Overdue", message, None, key=f"task-overdue:{t.id}:{due_key}")
             managers = []
             if st["automation"]["taskOverdue"].get("notifyManager") and level >= st["managerNotifyOverdueDays"]:
                 managers = managers_of(db, t)
-                alert(db, managers, t, "Task Overdue", f"“{t.title}” — {label}", None)
+                alert(db, managers, t, "Task Overdue", message, None, key=f"task-overdue:{t.id}:{due_key}")
                 out["managerAlerts"] += len(managers)
             set_attrs(t, overdueNotified=done)
             log_event(db, t.id, SYSTEM, "Overdue", f"{label} - owner notified{f' and {len(managers)} manager(s)' if managers else ''}")

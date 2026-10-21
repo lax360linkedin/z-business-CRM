@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import clsx from 'clsx'
-import { Plus, Settings2, ListChecks, UserCheck, CalendarDays, CalendarClock, AlertTriangle, Flag, Loader, CheckCircle2, UserX, Bookmark, X, Lightbulb } from 'lucide-react'
+import { Plus, Settings2, ListChecks, UserCheck, CalendarDays, CalendarClock, AlertTriangle, Flag, Loader, CheckCircle2, UserX, Bookmark, X, Lightbulb, Bell } from 'lucide-react'
 import { ExportMenu } from '../../components/common/ExportMenu'
 import { describeFilters } from '../../utils/exporter'
+import { useAuth } from '../../context/AuthContext'
+import { useNotifications, markManyRead, markNotificationRead } from '../../hooks/useNotifications'
+import { useBranch } from '../../context/BranchContext'
 import { PageHeader } from '../../components/common/PageHeader'
 import { SearchBar } from '../../components/common/SearchBar'
 import { FilterToggleButton } from '../../components/common/FilterPanel'
@@ -23,7 +26,7 @@ import { departmentNames } from '../../utils/orgLookup'
 import { USERS } from '../../data/users'
 
 const sel = 'h-9 w-full rounded-lg border border-ink-200 bg-white px-2.5 text-xs text-ink-700 dark:border-ink-700 dark:bg-ink-900 dark:text-ink-200'
-const EMPTY = { assignee: 'all', createdBy: 'all', team: 'all', department: 'all', status: 'all', priority: 'all', taskType: 'all', dueFrom: '', dueTo: '', overdue: false, relatedType: 'all', relatedText: '', createdFrom: '', createdTo: '', completedFrom: '', completedTo: '' }
+const EMPTY = { assignee: 'all', createdBy: 'all', team: 'all', department: 'all', status: 'all', priority: 'all', taskType: 'all', dueFrom: '', dueTo: '', overdue: false, branch: 'all', relatedType: 'all', relatedText: '', createdFrom: '', createdTo: '', completedFrom: '', completedTo: '' }
 const VIEWS = [
   { id: 'my', label: 'My Tasks' }, { id: 'list', label: 'List' }, { id: 'kanban', label: 'Kanban' }, { id: 'calendar', label: 'Calendar' }, { id: 'team', label: 'Team' },
   { id: 'overdue', label: 'Overdue' }, { id: 'today', label: "Today" }, { id: 'upcoming', label: 'Upcoming' }, { id: 'completed', label: 'Completed' }, { id: 'unassigned', label: 'Unassigned' },
@@ -47,6 +50,10 @@ export default function Tasks() {
   const view = VIEWS.some((v) => v.id === params.get('view')) ? params.get('view') : 'my'
   const setView = (v) => setParams((p) => { const n = new URLSearchParams(p); n.set('view', v); n.delete('create'); return n }, { replace: true })
   const { tasks, loading, error, reload } = useTasks()
+  const { unreadTasks, taskItems } = useNotifications()
+  const navigate = useNavigate()
+  const { hasPermission } = useAuth()
+  const { isGlobal, activeNames } = useBranch()
   const { perms, me } = useTaskMeta()
   const { data: lookup, find } = useTaskLookup(true)
   const actions = useTaskActions({ onChanged: reload })
@@ -97,6 +104,7 @@ export default function Tasks() {
       if (f.priority !== 'all' && t.priority !== f.priority) return false
       if (f.taskType !== 'all' && t.taskType !== f.taskType) return false
       if (f.overdue && !t.overdue) return false
+      if (f.branch !== 'all' && t.branch !== f.branch) return false
       if (f.relatedType !== 'all' && t.relatedType !== f.relatedType) return false
       if (rt && !`${t.relatedName || ''} ${t.relatedId || ''}`.toLowerCase().includes(rt)) return false
       if (!inRange(t.dueDate, f.dueFrom, f.dueTo)) return false
@@ -138,7 +146,7 @@ export default function Tasks() {
   const exportFilters = describeFilters([
     ['View', VIEWS.find((v) => v.id === view)?.label], ['Search', search.trim() && `"${search.trim()}"`], ['Assignee', f.assignee !== 'all' && (f.assignee === 'none' ? 'Unassigned' : nameOfUser(f.assignee))],
     ['Created by', f.createdBy !== 'all' && nameOfUser(f.createdBy)], ['Team', f.team], ['Department', f.department], ['Status', f.status], ['Priority', f.priority], ['Type', f.taskType], ['Overdue only', f.overdue && 'Yes'],
-    ['Related type', f.relatedType], ['Related to', f.relatedText], ['Due from', f.dueFrom], ['Due to', f.dueTo], ['Created from', f.createdFrom], ['Created to', f.createdTo], ['Completed from', f.completedFrom], ['Completed to', f.completedTo],
+    ['Branch', f.branch], ['Related type', f.relatedType], ['Related to', f.relatedText], ['Due from', f.dueFrom], ['Due to', f.dueTo], ['Created from', f.createdFrom], ['Created to', f.createdTo], ['Completed from', f.completedFrom], ['Completed to', f.completedTo],
   ])
 
   const saveFilter = () => {
@@ -170,6 +178,28 @@ export default function Tasks() {
         ))}
       </div>
 
+      {unreadTasks > 0 && (
+        <div role="status" className="mb-4 rounded-xl border border-sky-200 bg-sky-50/70 p-3 text-sm dark:border-sky-800/40 dark:bg-sky-900/10">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Bell size={16} className="shrink-0 text-sky-600 dark:text-sky-300" />
+            <p className="flex-1 text-sky-900 dark:text-sky-200"><span className="font-semibold">{unreadTasks} unread task notification{unreadTasks > 1 ? 's' : ''}</span> - new assignments, changes, reminders or overdue alerts.</p>
+            <div className="flex flex-wrap gap-2">
+              {hasPermission('Notifications', 'view') && <Link to="/notifications?type=tasks&read=unread"><Button size="sm" variant="secondary">View all</Button></Link>}
+              <Button size="sm" variant="ghost" onClick={() => markManyRead(taskItems)}>Mark all read</Button>
+            </div>
+          </div>
+          <ul className="mt-2 divide-y divide-sky-100 dark:divide-sky-800/30">
+            {taskItems.filter((n) => !n.read).slice(0, 3).map((n) => (
+              <li key={n.id}>
+                <button type="button" onClick={() => { markNotificationRead(n.id); if (n.relatedId) navigate(`/tasks/${n.relatedId}`) }} className="flex w-full items-start gap-2 py-1.5 text-left text-xs text-sky-900 hover:underline dark:text-sky-100">
+                  <span className="mt-1 h-1.5 w-1.5 shrink-0 rounded-full bg-sky-500" /><span className="min-w-0 flex-1"><span className="font-semibold">{n.type}</span> - {n.message}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+
       {suggestions.length > 0 && perms.create && (
         <div className="mb-4 flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-sm dark:border-amber-800/40 dark:bg-amber-900/10 sm:flex-row sm:items-center">
           <Lightbulb size={16} className="shrink-0 text-amber-600" />
@@ -200,6 +230,7 @@ export default function Tasks() {
         <div className="mb-4 grid gap-3 rounded-2xl border border-ink-100 bg-white p-4 shadow-card sm:grid-cols-2 lg:grid-cols-4 dark:border-ink-800 dark:bg-ink-900">
           <label className="text-xs font-medium text-ink-500">Assigned user<select aria-label="Assigned user" className={clsx(sel, 'mt-1')} value={f.assignee} onChange={(e) => set({ assignee: e.target.value })}><option value="all">Anyone</option><option value="none">Unassigned</option>{options.users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></label>
           <label className="text-xs font-medium text-ink-500">Created by<select aria-label="Created by" className={clsx(sel, 'mt-1')} value={f.createdBy} onChange={(e) => set({ createdBy: e.target.value })}><option value="all">Anyone</option><option value="SYSTEM">Automation</option>{options.users.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}</select></label>
+          {isGlobal && <label className="text-xs font-medium text-ink-500">Branch<select aria-label="Branch" className={clsx(sel, 'mt-1')} value={f.branch} onChange={(e) => set({ branch: e.target.value })}><option value="all">All branches</option>{activeNames.map((b) => <option key={b} value={b}>{b}</option>)}</select></label>}
           <label className="text-xs font-medium text-ink-500">Department<select aria-label="Department" className={clsx(sel, 'mt-1')} value={f.department} onChange={(e) => set({ department: e.target.value })}><option value="all">All</option>{departmentNames().map((d) => <option key={d}>{d}</option>)}</select></label>
           <label className="text-xs font-medium text-ink-500">Team / role assigned<select aria-label="Team" className={clsx(sel, 'mt-1')} value={f.team} onChange={(e) => set({ team: e.target.value })}><option value="all">All</option>{options.teams.map((d) => <option key={d}>{d}</option>)}</select></label>
           <label className="text-xs font-medium text-ink-500">Status<select aria-label="Status" className={clsx(sel, 'mt-1')} value={f.status} onChange={(e) => set({ status: e.target.value })}><option value="all">All</option>{TASK_STATUS_LIST.map((d) => <option key={d}>{d}</option>)}</select></label>

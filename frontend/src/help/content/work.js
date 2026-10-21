@@ -28,6 +28,8 @@ export const work = {
       'Metric tiles for your open and overdue tasks, with a refresh button.',
       'Filters for status, priority, assigned user, team, department, related record, type and dates, plus saved filters that are private to you.',
       'Automatic tasks (for example follow-up and overdue reminders) created by the CRM’s task rules.',
+      'Everyone a task is assigned to is notified (bell, and the badge on Tasks): who assigned it, its priority and when it is due. They are told again if its priority, due date or assignee changes.',
+      'Automatic reminders 1 day, 5 hours and 1 hour before the due time (the administrator can change which), each sent once; a task that is completed or cancelled stops them, and a new due date starts them over. A task that passes its due time is marked overdue and the assignee is told once, then again at 3 and 7 days.',
     ],
     actions: [
       ['New task', 'Creates a task: title, due date, priority, assignee and, optionally, the lead, deal or other record it relates to.'],
@@ -67,6 +69,7 @@ export const work = {
     actions: [
       ['Automation switches', 'Turn each automatic task on or off and set its timing, priority and who is told.'],
       ['Permissions', 'Choose what each role may do with tasks.'],
+      ['Reminders & uploads → due-date reminders', 'Switch the automatic reminders on or off and choose how long before the due time they are sent (1 day, 5 hours and 1 hour by default; 2 days to 15 minutes are offered).'],
       ['Save', 'Applies the settings; the server enforces them for everybody straight away.'],
     ],
     tips: ['Only Administrators can open this page.'],

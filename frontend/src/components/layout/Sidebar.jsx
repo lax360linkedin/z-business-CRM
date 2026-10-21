@@ -5,13 +5,14 @@ import clsx from 'clsx'
 import { NAV_SECTIONS } from '../../routes/navConfig'
 import { useSidebar } from '../../context/SidebarContext'
 import { useAuth } from '../../context/AuthContext'
+import { useNotifications } from '../../hooks/useNotifications'
 import { BrandImg } from '../common/Logo'
 import { preloadPath } from '../../routes/lazyPage'
 import { prefetchData } from '../../api/prefetch'
 
 // Menu visibility: a user only sees the modules their account may view - everything else is hidden. The actual security boundary is
 // AppLayout's route-level gate (a module typed into the address bar is blocked and logged) plus the mock API's own checks.
-function NavItem({ item, collapsed, allowed }) {
+function NavItem({ item, collapsed, allowed, badge = 0 }) {
   const { hasPermission } = useAuth()
   const { pathname } = useLocation()
   const name = item.display || item.label
@@ -40,6 +41,8 @@ function NavItem({ item, collapsed, allowed }) {
       <item.icon size={17} className="shrink-0" />
       {!collapsed && <span className="truncate">{name}</span>}
       {!collapsed && !allowed && <Lock size={12} className="ml-auto shrink-0 text-ink-400 dark:text-ink-500" />}
+      {!collapsed && badge > 0 && <span aria-label={`${badge} unread task notifications`} title={`${badge} unread task notification${badge === 1 ? '' : 's'}`} className="ml-auto min-w-5 rounded-full bg-rose-500 px-1.5 py-0.5 text-center text-[10px] font-bold leading-none text-white">{badge > 99 ? '99+' : badge}</span>}
+      {collapsed && badge > 0 && <span aria-hidden className="absolute right-2 top-1.5 h-2 w-2 rounded-full bg-rose-500 ring-2 ring-white dark:ring-ink-950" />}
       {collapsed && (
         <span className="pointer-events-none absolute left-full ml-2 whitespace-nowrap rounded-md bg-ink-800 px-2.5 py-1.5 text-xs font-medium text-white opacity-0 shadow-popover transition-opacity duration-150 group-hover:opacity-100 z-50">
           {name}{!allowed && ' (no access)'}
@@ -51,6 +54,7 @@ function NavItem({ item, collapsed, allowed }) {
 
 function SidebarContent({ collapsed, onNavigate }) {
   const { hasPermission } = useAuth()
+  const { unreadTasks } = useNotifications()
   return (
     <div className="flex h-full flex-col">
       <div className={clsx('flex h-16 shrink-0 items-center border-b border-ink-100 px-4 dark:border-ink-800', collapsed && 'justify-center px-0')}>
@@ -75,7 +79,7 @@ function SidebarContent({ collapsed, onNavigate }) {
             {section.title && collapsed && <div className="mb-1.5 h-px bg-ink-100 dark:bg-ink-800" />}
             <div className="space-y-0.5">
               {section.items.map((item) => (
-                <NavItem key={item.to} item={item} collapsed={collapsed} allowed />
+                <NavItem key={item.to} item={item} collapsed={collapsed} allowed badge={item.to === '/tasks' ? unreadTasks : 0} />
               ))}
             </div>
           </div>

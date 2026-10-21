@@ -26,7 +26,7 @@ def me(p: Principal = Depends(require("Tasks", "view")), db: Session = Depends(g
     actor, perms = actor_perms(db, p)
     st = svc.settings(db)
     return {"user": {"id": actor.id, "name": actor.name, "role": actor.job_role if actor.level == "Employee" else actor.level, "department": actor.department, "accountId": p.user.id}, "perms": perms,
-            "settings": {"automation": st["automation"], "uploadRules": st["uploadRules"], "managerNotifyOverdueDays": st["managerNotifyOverdueDays"]}, "emailConfigured": False, "whatsappConfigured": False}
+            "settings": {"automation": st["automation"], "uploadRules": st["uploadRules"], "managerNotifyOverdueDays": st["managerNotifyOverdueDays"], "reminders": st["reminders"]}, "emailConfigured": False, "whatsappConfigured": False}
 
 
 @router.get("/summary")
@@ -104,7 +104,8 @@ def put_settings(payload: dict[str, Any] = Body(...), p: Principal = Depends(req
     current = svc.settings(db)
     automation = {k: {**current["automation"][k], **{f: v for f, v in (payload.get("automation", {}).get(k) or {}).items() if f in ("enabled", "dueInDays", "priority", "lookbackDays", "notifyManager")}} for k in current["automation"]}
     value = {"permissions": payload.get("permissions", current["permissions"]), "automation": automation, "uploadRules": current["uploadRules"],
-             "managerNotifyOverdueDays": int(payload.get("managerNotifyOverdueDays", current["managerNotifyOverdueDays"])), "notifyManagerOnReminder": bool(payload.get("notifyManagerOnReminder", current["notifyManagerOnReminder"])), "updatedAt": svc.iso()}
+             "managerNotifyOverdueDays": int(payload.get("managerNotifyOverdueDays", current["managerNotifyOverdueDays"])), "notifyManagerOnReminder": bool(payload.get("notifyManagerOnReminder", current["notifyManagerOnReminder"])),
+             "reminders": svc.reminder_settings({**current["reminders"], **(payload.get("reminders") if isinstance(payload.get("reminders"), dict) else {})}), "updatedAt": svc.iso()}
     row = db.get(AppSetting, "task_settings")
     if row is None:
         db.add(AppSetting(key="task_settings", value=value, updated_by=p.actor_id))

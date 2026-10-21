@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
   Search, Bell, Plus, Sun, Moon, HelpCircle, Menu, LogOut, User, Settings as SettingsIcon,
@@ -8,12 +8,13 @@ import { IconButton, Button } from '../common/Button'
 import { Avatar } from '../common/Avatar'
 import { useTheme } from '../../context/ThemeContext'
 import { useAuth } from '../../context/AuthContext'
+import { useNotifications, markNotificationRead, markAllNotificationsRead } from '../../hooks/useNotifications'
+import { useRefreshHandler } from '../../api/refresh'
 import { useSidebar } from '../../context/SidebarContext'
 import { QUICK_CREATE_ITEMS } from '../../routes/navConfig'
 import { GlobalSearchModal } from './GlobalSearchModal'
 import { useGlobalSearchShortcut, SEARCH_SHORTCUT_LABEL } from '../../hooks/useGlobalSearchShortcut'
 import { BranchSelector } from './BranchSelector'
-import { api } from '../../api/mockServer'
 import { timeAgo } from '../../utils/format'
 import { relatedHref } from '../../utils/activityRules'
 import { useHelp } from '../../help/HelpContext'
@@ -25,39 +26,20 @@ export function Header() {
   const { openHelp } = useHelp()
   const navigate = useNavigate()
   const [searchOpen, setSearchOpen] = useState(false)
-  const [notifications, setNotifications] = useState([])
-  const unread = useMemo(() => notifications.filter((n) => !n.read).length, [notifications])
+  const { items: notifications, unread, reload: loadNotifications } = useNotifications()
+  useRefreshHandler(loadNotifications)
 
-  // Live-fetched (not the static seed array) and polled every 20s so lead-assignment/
-  // follow-up-reminder notifications created elsewhere in the app show up here without a full
-  // page reload — same read/write source the Notifications page itself uses, so "mark all
-  // read" here and there stay in sync instead of being two independent stores.
-  const loadNotifications = () => {
-    api.get('/notifications', { params: { all: true } }).then((res) => {
-      setNotifications([...res.data].sort((a, b) => new Date(b.date) - new Date(a.date)))
-    })
-  }
-
-  useEffect(() => {
-    // polled while the tab is in front only (a hidden tab asks nothing), and again the moment it comes back
-    loadNotifications()
-    const tick = () => { if (document.visibilityState === 'visible') loadNotifications() }
-    const id = setInterval(tick, 45000)
-    document.addEventListener('visibilitychange', tick)
-    return () => { clearInterval(id); document.removeEventListener('visibilitychange', tick) }
-  }, [])
+  // the shared, polled list of my notifications (hooks/useNotifications.js): the bell, the Tasks menu badge and the Notifications page all read the same copy
 
   useGlobalSearchShortcut(() => setSearchOpen((open) => !open)) // Ctrl+K / Cmd+K opens the search over the current page, and closes it again
 
   const openNotification = (n) => {
-    if (!n.read) api.put(`/notifications/${n.id}`, { read: true }).then(loadNotifications)
+    if (!n.read) markNotificationRead(n.id)
     const href = n.relatedType === 'Task' ? `/tasks/${n.relatedId}` : relatedHref(n.relatedType, n.relatedId)
     if (n.relatedId && href) navigate(href)
   }
 
-  const markAllRead = () => {
-    api.post('/notifications/read-all').then(loadNotifications)
-  }
+  const markAllRead = () => { markAllNotificationsRead() }
 
   return (
     <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-ink-100 bg-white/80 px-4 backdrop-blur-md sm:px-6 dark:border-ink-800 dark:bg-ink-950/80">
@@ -118,7 +100,7 @@ export function Header() {
             ))}
           </div>
           <DropdownDivider />
-          <DropdownItem onClick={() => navigate('/notifications')}>View all notifications</DropdownItem>
+          {hasPermission('Notifications', 'view') && <DropdownItem onClick={() => navigate('/notifications')}>View all notifications</DropdownItem>}
         </Dropdown>
 
         <IconButton icon={theme === 'dark' ? Sun : Moon} onClick={toggleTheme} />

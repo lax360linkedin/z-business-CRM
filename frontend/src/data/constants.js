@@ -132,7 +132,7 @@ export const NOTIFICATION_TYPES = [
   'High Priority Enquiry', 'Lead Qualified', 'Opportunity Created', 'Quotation Created',
   'Sales Order Created', 'Deal Won', 'Deal Lost', 'First Contact', 'Follow-up Due', 'Follow-up Overdue',
   'Meeting Scheduled', 'Meeting Rescheduled', 'Meeting Cancelled',
-  'Meeting Reminder', 'Task Assigned', 'Task Overdue', 'Task Mention', 'Task Completed', 'Task Comment',
+  'Meeting Reminder', 'Task Assigned', 'Task Updated', 'Task Overdue', 'Task Mention', 'Task Completed', 'Task Comment',
 ]
 
 export const STATUS_TONES = {

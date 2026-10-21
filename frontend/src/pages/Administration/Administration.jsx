@@ -390,11 +390,11 @@ export default function Administration() {
   const menu = useAdminMenu()
   const { pathname } = useLocation()
   const current = menu.flatMap((c) => c.items.map((item) => ({ ...item, category: c.title }))).find((item) => item.to === pathname)
-  const crumbs = current ? [{ label: 'Administration', href: '/administration' }, { label: current.category }, { label: current.label }] : [{ label: 'Administration' }]
+  const crumbs = current ? [{ label: 'Administration', href: '/administration' }, { label: current.category }, { label: current.label }] : null // the overview needs none: its title is the page
 
   return (
     <div>
-      <PageHeader title="Administration" breadcrumb={<Breadcrumbs items={crumbs} />}
+      <PageHeader title="Administration" breadcrumb={crumbs && <Breadcrumbs items={crumbs} />}
         description="System configuration, users and access, branches, module settings, communication and audit - in one place. Your personal preferences are under Settings in your profile menu." />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[240px_minmax(0,1fr)]">

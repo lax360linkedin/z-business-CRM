@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   UserPlus, UserCheck, Clock, ListChecks, Handshake, FileCheck2, IndianRupee,
   AlertTriangle, FolderKanban, LifeBuoy, Bell, CheckCheck,
@@ -12,6 +12,7 @@ import { useCrud } from '../../hooks/useCrud'
 import { NOTIFICATION_TYPES } from '../../data/constants'
 import { timeAgo } from '../../utils/format'
 import { relatedHref } from '../../utils/activityRules'
+import { loadNotifications } from '../../hooks/useNotifications'
 
 const ICONS = {
   UserPlus, UserCheck, Clock, ListChecks, Handshake, FileCheck2, IndianRupee,
@@ -38,6 +39,7 @@ const TONE_BY_TYPE = {
   'Enquiry Closed': 'bg-ink-100 text-ink-500 dark:bg-ink-800 dark:text-ink-400',
   'High Priority Enquiry': 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400',
   'Task Assigned': 'bg-sky-50 text-sky-600 dark:bg-sky-900/30 dark:text-sky-400',
+  'Task Updated': 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400',
   'Task Overdue': 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400',
   'Task Mention': 'bg-violet-50 text-violet-600 dark:bg-violet-900/30 dark:text-violet-400',
   'Task Completed': 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400',
@@ -47,20 +49,21 @@ const TONE_BY_TYPE = {
 export default function Notifications() {
   const navigate = useNavigate()
   const crud = useCrud('notifications', { searchFields: ['message', 'type'], pageSize: 15 })
-  const [typeFilter, setTypeFilter] = useState('all')
-  const [readFilter, setReadFilter] = useState('all')
+  const [params] = useSearchParams()
+  const [typeFilter, setTypeFilter] = useState(params.get('type') === 'tasks' ? 'tasks' : 'all') // 'tasks' = every task notification (assigned, updated, reminder, overdue ...)
+  const [readFilter, setReadFilter] = useState(params.get('read') === 'unread' ? 'unread' : 'all')
 
   const filtered = useMemo(() => {
     return crud.allFiltered
-      .filter((n) => typeFilter === 'all' || n.type === typeFilter)
+      .filter((n) => typeFilter === 'all' || (typeFilter === 'tasks' ? String(n.type).startsWith('Task') : n.type === typeFilter))
       .filter((n) => readFilter === 'all' || (readFilter === 'unread' ? !n.read : n.read))
-      .sort((a, b) => new Date(b.date) - new Date(a.date))
+      .sort((a, b) => new Date(b.date || b.createdAt) - new Date(a.date || a.createdAt))
   }, [crud.allFiltered, typeFilter, readFilter])
 
   const unreadCount = crud.allItems.filter((n) => !n.read).length
 
   const markAllRead = () => {
-    Promise.all(crud.allItems.filter((n) => !n.read).map((n) => crud.update(n.id, { read: true })))
+    Promise.all(crud.allItems.filter((n) => !n.read).map((n) => crud.update(n.id, { read: true }))).then(loadNotifications)
   }
 
   return (
@@ -90,6 +93,12 @@ export default function Notifications() {
           >
             All Types
           </button>
+          <button
+            onClick={() => setTypeFilter('tasks')}
+            className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${typeFilter === 'tasks' ? 'bg-brand-600 text-white' : 'bg-sky-50 text-sky-700 hover:bg-sky-100 dark:bg-sky-900/30 dark:text-sky-300 dark:hover:bg-sky-900/50'}`}
+          >
+            All task alerts{crud.allItems.filter((n) => !n.read && String(n.type).startsWith('Task')).length > 0 ? ` (${crud.allItems.filter((n) => !n.read && String(n.type).startsWith('Task')).length} unread)` : ''}
+          </button>
           {NOTIFICATION_TYPES.map((t) => (
             <button
               key={t}
@@ -114,7 +123,7 @@ export default function Notifications() {
               return (
                 <button
                   key={n.id}
-                  onClick={() => { if (!n.read) crud.update(n.id, { read: true }); const href = n.relatedType === 'Task' ? `/tasks/${n.relatedId}` : relatedHref(n.relatedType, n.relatedId); if (n.relatedId && href) navigate(href) }}
+                  onClick={() => { if (!n.read) crud.update(n.id, { read: true }).then(loadNotifications); const href = n.relatedType === 'Task' ? `/tasks/${n.relatedId}` : relatedHref(n.relatedType, n.relatedId); if (n.relatedId && href) navigate(href) }}
                   className={`flex w-full items-start gap-3.5 px-5 py-4 text-left transition-colors hover:bg-ink-50 dark:hover:bg-ink-800/50 ${!n.read ? 'bg-brand-50/40 dark:bg-brand-900/10' : ''}`}
                 >
                   <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${TONE_BY_TYPE[n.type] || 'bg-ink-100 text-ink-500 dark:bg-ink-800 dark:text-ink-400'}`}>
@@ -126,7 +135,7 @@ export default function Notifications() {
                       {!n.read && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-brand-500" />}
                     </div>
                     <p className="mt-0.5 text-sm text-ink-600 dark:text-ink-300">{n.message}</p>
-                    <p className="mt-1 text-xs text-ink-400">{timeAgo(n.date)}</p>
+                    <p className="mt-1 text-xs text-ink-400">{timeAgo(n.date || n.createdAt)}</p>
                   </div>
                 </button>
               )

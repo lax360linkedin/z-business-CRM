@@ -13,6 +13,7 @@ import { api } from '../../api/mockServer'
 import { errMsg, emitTasksChanged, useTaskMeta } from './taskClient'
 import { TASK_PERMISSION_KEYS, DEFAULT_TASK_PERMISSIONS, TASK_PRIORITIES, TASK_FILE_RULES, taskPermissionsFor } from '../../utils/taskRules'
 
+const REMINDER_LABEL = (m) => (m >= 1440 && m % 1440 === 0 ? `${m / 1440} day${m === 1440 ? '' : 's'}` : m >= 60 && m % 60 === 0 ? `${m / 60} hour${m === 60 ? '' : 's'}` : `${m} minutes`)
 const RULE_ORDER = ['newLead', 'leadContacted', 'dealCreated', 'proposalSent', 'quotationSent', 'invoiceOverdue', 'taskOverdue']
 const RULE_HELP = {
   newLead: 'Creates an initial call task for the lead owner when a new lead arrives.',
@@ -75,7 +76,7 @@ export default function TaskSettings() {
       {error && <div role="alert" className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-800/50 dark:bg-rose-900/20 dark:text-rose-300">{error}</div>}
       <div className="mb-4 flex items-start gap-2 rounded-xl border border-sky-200 bg-sky-50/70 px-4 py-3 text-sm text-sky-900 dark:border-sky-800/40 dark:bg-sky-900/10 dark:text-sky-200">
         <Info size={16} className="mt-0.5 shrink-0" />
-        <p>Reminders and overdue alerts are delivered <b>in the app</b> (bell and Notifications). Email and WhatsApp delivery are not configured, so nothing is sent through those channels. Automation runs while someone has the CRM open — there is no background scheduler in this workspace.</p>
+        <p>Reminders and overdue alerts are delivered <b>in the app</b> (bell and Notifications). Email and WhatsApp delivery are not configured, so nothing is sent through those channels. Reminders, overdue alerts and automation are run by the server on a timer (about every two minutes), whether or not anyone has the CRM open; if the server was asleep or restarting, the missed ones are sent as soon as it is running again, with the time that is really left.</p>
       </div>
       <Tabs className="mb-5" active={tab} onChange={setTab} tabs={[{ value: 'automation', label: 'Automation' }, { value: 'permissions', label: 'Permissions' }, { value: 'uploads', label: 'Reminders & uploads' }]} />
 
@@ -155,8 +156,18 @@ export default function TaskSettings() {
           </div>
           <div className="rounded-2xl border border-ink-100 bg-white p-5 shadow-card dark:border-ink-800 dark:bg-ink-900">
             <h3 className="text-sm font-semibold text-ink-900 dark:text-ink-50">Reminders</h3>
+            <div className="mt-3 rounded-xl border border-ink-100 p-4 dark:border-ink-800">
+              <label className="flex items-center gap-3 text-sm font-medium text-ink-800 dark:text-ink-100"><Switch checked={s.reminders?.enabled !== false} onChange={(v) => setS((x) => ({ ...x, reminders: { ...x.reminders, enabled: v } }))} label="Automatic due-date reminders" /> Automatic due-date reminders for the people a task is assigned to</label>
+              <p className="mt-2 text-xs text-ink-500">Each one is sent once per task and person, counted from the task’s real due date and time (in {'the organisation’s time zone'}). A reminder whose moment had already passed when the task was created or rescheduled is not sent, and nothing is sent for a task that is completed, cancelled or already overdue.</p>
+              <div className="mt-3 flex flex-wrap gap-2" role="group" aria-label="Reminder times before the due date">
+                {(s.reminders?.choices || [1440, 300, 60]).map((m) => {
+                  const on = (s.reminders?.intervals || []).includes(m)
+                  return <button key={m} type="button" aria-pressed={on} disabled={s.reminders?.enabled === false} onClick={() => setS((x) => ({ ...x, reminders: { ...x.reminders, intervals: on ? x.reminders.intervals.filter((y) => y !== m) : [...(x.reminders?.intervals || []), m] } }))} className={clsx('rounded-full border px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-50', on ? 'border-brand-600 bg-brand-50 text-brand-700 dark:bg-brand-900/30 dark:text-brand-300' : 'border-ink-200 text-ink-600 hover:bg-ink-50 dark:border-ink-700 dark:text-ink-300 dark:hover:bg-ink-800')}>{REMINDER_LABEL(m)} before</button>
+                })}
+              </div>
+            </div>
             <label className="mt-4 flex items-center gap-3 text-sm text-ink-700 dark:text-ink-200"><Switch checked={s.notifyManagerOnReminder} onChange={(v) => setS((x) => ({ ...x, notifyManagerOnReminder: v }))} label="Also remind the manager" /> Also send the reminder to the responsible manager</label>
-            <p className="mt-2 text-xs text-ink-400">Users pick 5 min, 15 min, 30 min, 1 hour, 1 day or a custom time on each task. Reminders appear in the assignee’s bell when due.</p>
+            <p className="mt-2 text-xs text-ink-400">On top of these, anyone can pick their own extra reminder (5 min, 15 min, 30 min, 1 hour, 1 day or a custom time) on a single task. Reminders appear in the assignee’s bell and in Notifications.</p>
           </div>
         </div>
       )}
