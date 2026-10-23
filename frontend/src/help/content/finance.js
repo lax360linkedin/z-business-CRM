@@ -20,7 +20,7 @@ export const finance = {
       'If the due date passes with a balance, the invoice becomes Overdue automatically; use Follow up or Payment follow-up to chase it.',
     ] }],
     tips: ['Drafts, cancelled and void invoices never count as money owed.', 'A paid invoice is locked apart from notes; correct a mistake with a cancellation or refund.'],
-    related: [['Payments', '/payments'], ['Sales Orders', '/sales-orders'], ['Finance reports', '/reports/finance'], ['Invoice settings', '/administration/modules/invoices']],
+    related: [['Payments', '/payments'], ['Sales Orders', '/sales-orders'], ['Finance reports', '/reports/finance'], ['Invoice settings', '/settings/modules/invoices']],
   },
 
   invoiceDetail: {
@@ -90,7 +90,7 @@ export const finance = {
       'A manager reviews it and chooses Approve (or Reject with a reason).',
       'Finance pays it and marks it Reimbursed.',
     ] }],
-    related: [['Finance reports', '/reports/finance'], ['Expense settings', '/administration/modules/expenses']],
+    related: [['Finance reports', '/reports/finance'], ['Expense settings', '/settings/modules/expenses']],
   },
 
   expenseDetail: {

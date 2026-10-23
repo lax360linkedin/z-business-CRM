@@ -63,17 +63,16 @@ export function getPageHelp(pathname) {
   for (const [pattern, id] of ROUTES) {
     if (matchPath({ path: pattern, end: true }, path)) return { key: id, ...ALL_HELP[id] }
   }
-  if (path.startsWith('/administration/')) { // the configuration pages: /administration/<panel> and /administration/modules/<module>
-    const parts = path.split('/').filter(Boolean) // ['administration', section, key?]
-    const section = parts[1]
+  if (path === '/settings' || path.startsWith('/settings/')) {
+    const parts = path.split('/').filter(Boolean) // ['settings', section, key?]
+    const section = parts[1] || 'company-profile'
     if (section === 'modules') {
       const help = moduleSettingsHelp(parts[2])
-      if (help) return { key: `administration-modules-${parts[2]}`, ...help }
-    } else if (settings[section] && section !== 'appearance') {
-      return { key: `administration-${section}`, ...settings[section] }
+      if (help) return { key: `settings-modules-${parts[2]}`, ...help }
+    } else if (settings[section]) {
+      return { key: `settings-${section}`, ...settings[section] }
     }
-    return { key: 'administration', ...ALL_HELP.administration }
+    return { key: 'settings-company-profile', ...settings['company-profile'] }
   }
-  if (path === '/settings' || path.startsWith('/settings/')) return { key: 'settings-appearance', ...settings.appearance } // personal preferences
   return FALLBACK
 }

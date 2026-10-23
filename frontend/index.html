@@ -12,17 +12,31 @@
     />
     <title>LAX360 Business CRM</title>
     <script>
-      // Applies the persisted appearance (dark/light class + accent color) before React mounts,
-      // so there is never a flash of the wrong theme on load/refresh. Reads the same
-      // localStorage keys ThemeContext (src/context/ThemeContext.jsx) owns — kept in sync with
-      // that file if those key names ever change.
+      // Applies the saved Personalization (dark class, interface style, contrast, accent palette ...) before React mounts, so there is never a flash of the wrong look on load / refresh.
+      // Reads the same localStorage entry ThemeContext writes (see src/theme/personalization.js: STORAGE_KEY, and the data-* names applyToDocument sets) - keep them in sync.
+      // Visual preferences only; nothing sensitive is stored there.
       (function () {
         try {
-          var mode = localStorage.getItem('business_crm_theme_mode_v1') || 'system';
-          var isDark = mode === 'dark' || (mode === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
-          if (isDark) document.documentElement.classList.add('dark');
-          var accent = localStorage.getItem('business_crm_theme_accent_v1') || 'purple';
-          document.documentElement.setAttribute('data-accent', accent);
+          var root = document.documentElement;
+          var store = JSON.parse(localStorage.getItem('business_crm_personalization_v1') || 'null');
+          var p = (store && store.last) || {};
+          if (!store) { // first load after the upgrade: carry over the old mode / accent keys
+            p.mode = localStorage.getItem('business_crm_theme_mode_v1') || 'system';
+            p.accent = localStorage.getItem('business_crm_theme_accent_v1') || 'purple';
+          }
+          var dark = p.mode === 'dark' || ((p.mode || 'system') === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (dark) root.classList.add('dark');
+          var more = window.matchMedia('(prefers-contrast: more)').matches;
+          var contrast = p.ui === 'contrast' ? 'high' : p.contrast === 'auto' ? (more ? 'increased' : 'standard') : (p.contrast || 'standard');
+          var attrs = { ui: p.ui || 'modern', contrast: contrast, bg: p.bg || 'solid', card: p.card || 'solid', border: p.border || 'standard', shadow: p.shadow || 'soft', radius: p.radius || 'default', blur: p.blur || 'medium', size: p.size || 'medium', density: p.density || 'comfortable', read: p.read || 'standard', accent: p.accent || 'purple' };
+          for (var k in attrs) root.setAttribute('data-' + k, attrs[k]);
+          var scales = { sharp: 0.55, 'default': 1, rounded: 1.3, round: 1.6 }, shadows = { none: 0, soft: 1, medium: 2, strong: 3.2 }, blurs = { low: 8, medium: 16, high: 26 }, sizes = { small: 93.75, medium: 100, large: 112.5 };
+          root.style.setProperty('--radius-scale', String(scales[attrs.radius] || 1));
+          root.style.setProperty('--shadow-scale', String(shadows[attrs.shadow] === undefined ? 1 : shadows[attrs.shadow]));
+          root.style.setProperty('--glass-blur', (blurs[attrs.blur] || 16) + 'px');
+          root.style.setProperty('--font-percent', (sizes[attrs.size] || 100) + '%');
+          var vars = store && store.vars && store.vars[dark ? 'dark' : 'light'];
+          if (vars && attrs.accent !== 'purple') vars.split(';').forEach(function (d) { var i = d.indexOf(':'); root.style.setProperty(d.slice(0, i), d.slice(i + 1)); });
         } catch (e) {}
       })();
     </script>

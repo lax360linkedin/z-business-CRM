@@ -1,0 +1,180 @@
+/*
+ * Settings → Personalization: the stylesheet half of the personalization system. ThemeContext (theme/personalization.js) writes the person's choices onto <html> as
+ *   class "dark"  ·  data-ui  data-contrast  data-bg  data-card  data-border  data-shadow  data-radius  data-blur  data-size  data-density  data-read  data-accent
+ * and the CSS variables --brand-* (accent), --radius-scale, --shadow-scale, --glass-blur and --font-percent. This file turns those into the look.
+ *
+ * Everything here is keyed on those attributes only, so the page structure, navigation and permissions never change, and the defaults (Modern, standard contrast, solid
+ * background, solid cards, standard borders, soft shadows, standard radius, comfortable density, medium text) emit no overrides at all: the CRM looks exactly as it always did.
+ * Corner radius and shadow strength are handled in tailwind.config.js (they scale with --radius-scale / --shadow-scale), the accent in index.css (--brand-*).
+ *
+ * Overrides that must not break hover / focus states are written with :not(:hover):not(:focus):not(:focus-within), so a control's own hover and focus styling still wins.
+ */
+
+/* ---------------------------------------------------------------- page canvas */
+:root {
+  --page-bg: rgb(var(--ink-50));
+  --page-bg-image: none;
+  /* the borders the app draws: light mode uses ink-100 (soft dividers) and ink-200 (controls); dark mode uses ink-800 and ink-700. The Personalization border strength and the contrast levels move these. */
+  --bd-l1: var(--ink-100);
+  --bd-l2: var(--ink-200);
+  --bd-d1: var(--ink-800);
+  --bd-d2: var(--ink-700);
+  --bd-a: 1;
+  --glass-card: 255 255 255 / 0.64;
+  --glass-panel: 255 255 255 / 0.58;
+  --glass-pop: 255 255 255 / 0.84;
+  --glass-dense: 255 255 255 / 0.94;
+}
+:root.dark {
+  --page-bg: rgb(var(--ink-950));
+  --glass-card: 15 23 42 / 0.58;
+  --glass-panel: 2 6 23 / 0.52;
+  --glass-pop: 15 23 42 / 0.88;
+  --glass-dense: 15 23 42 / 0.95;
+}
+
+/* background choices */
+html[data-bg='neutral'] { --page-bg: rgb(245 245 245); }
+html.dark[data-bg='neutral'] { --page-bg: rgb(10 10 10); }
+html[data-bg='tinted'] { --page-bg: color-mix(in srgb, rgb(var(--brand-500)) 9%, rgb(248 250 252)); }
+html.dark[data-bg='tinted'] { --page-bg: color-mix(in srgb, rgb(var(--brand-500)) 13%, rgb(2 6 23)); }
+html[data-bg='gradient'] {
+  --page-bg-image: linear-gradient(160deg, rgb(var(--brand-100) / 0.75) 0%, transparent 42%), linear-gradient(20deg, rgb(var(--brand-50) / 0.9) 0%, transparent 48%);
+}
+html.dark[data-bg='gradient'] {
+  --page-bg-image: linear-gradient(160deg, rgb(var(--brand-900) / 0.5) 0%, transparent 42%), linear-gradient(20deg, rgb(var(--brand-950) / 0.6) 0%, transparent 52%);
+}
+/* the Glass style shows best over colour, so its gradient is a little richer */
+html[data-ui='glass'][data-bg='gradient'] {
+  --page-bg-image: radial-gradient(60rem 36rem at 6% -8%, rgb(var(--brand-300) / 0.55), transparent 62%), radial-gradient(52rem 34rem at 100% 6%, rgb(var(--brand-200) / 0.75), transparent 62%), radial-gradient(48rem 30rem at 50% 112%, rgb(var(--brand-100) / 0.85), transparent 62%);
+}
+html.dark[data-ui='glass'][data-bg='gradient'] {
+  --page-bg-image: radial-gradient(60rem 36rem at 6% -8%, rgb(var(--brand-700) / 0.45), transparent 62%), radial-gradient(52rem 34rem at 100% 6%, rgb(var(--brand-800) / 0.5), transparent 62%), radial-gradient(48rem 30rem at 50% 112%, rgb(var(--brand-900) / 0.6), transparent 62%);
+}
+
+/* ---------------------------------------------------------------- border strength */
+html[data-border='subtle'] { --bd-l1: 245 247 250; --bd-l2: 233 238 244; --bd-d1: 23 32 49; --bd-d2: 40 52 72; }
+html[data-border='strong'] { --bd-l1: 203 213 225; --bd-l2: 148 163 184; --bd-d1: 51 65 85; --bd-d2: 100 116 139; }
+
+/* ---------------------------------------------------------------- contrast levels: firmer neutrals and borders (the accent keeps its own, already AA-checked, shades) */
+html[data-contrast='increased'], html[data-read='enhanced'] { --ink-400: 100 116 139; --ink-500: 71 85 105; }
+html.dark[data-contrast='increased'], html.dark[data-read='enhanced'] { --ink-400: 186 197 214; --ink-500: 148 163 184; }
+html[data-contrast='increased'] { --ink-300: 148 163 184; --ink-600: 51 65 85; --bd-l1: 203 213 225; --bd-l2: 148 163 184; --glass-card: 255 255 255 / 0.88; --glass-panel: 255 255 255 / 0.86; --glass-pop: 255 255 255 / 0.95; }
+html.dark[data-contrast='increased'] { --bd-d1: 51 65 85; --bd-d2: 100 116 139; --glass-card: 15 23 42 / 0.86; --glass-panel: 2 6 23 / 0.84; --glass-pop: 15 23 42 / 0.95; }
+html[data-contrast='high'] {
+  --ink-300: 100 116 139; --ink-400: 71 85 105; --ink-500: 51 65 85; --ink-600: 30 41 59; --ink-700: 15 23 42; --ink-800: 2 6 23;
+  --bd-l1: 100 116 139; --bd-l2: 71 85 105;
+}
+html.dark[data-contrast='high'] {
+  --ink-300: 226 232 240; --ink-400: 203 213 225; --ink-500: 186 197 214; --ink-600: 148 163 184;
+  --bd-d1: 100 116 139; --bd-d2: 148 163 184;
+}
+
+/* a grey or tinted canvas is a little darker than the standard one, so the secondary text on it is darkened a touch to stay at WCAG AA (4.5:1) */
+html:is([data-bg='neutral'], [data-bg='tinted']):not(.dark):not([data-contrast='increased']):not([data-contrast='high']):not([data-read='enhanced']) { --ink-500: 82 96 118; }
+
+/* apply the border colours (only when something other than the defaults is chosen, and never over a control's hover / focus colour) */
+html:is([data-border='subtle'], [data-border='strong'], [data-contrast='increased'], [data-contrast='high']):not(.dark) :is(.border-ink-100, .border-ink-50):not(:hover):not(:focus):not(:focus-within) { border-color: rgb(var(--bd-l1)); }
+html:is([data-border='subtle'], [data-border='strong'], [data-contrast='increased'], [data-contrast='high']):not(.dark) .border-ink-200:not(:hover):not(:focus):not(:focus-within) { border-color: rgb(var(--bd-l2)); }
+html:is([data-border='subtle'], [data-border='strong'], [data-contrast='increased'], [data-contrast='high']):not(.dark) :is(.divide-ink-100, .divide-ink-50) > :not([hidden]) ~ :not([hidden]) { border-color: rgb(var(--bd-l1)); }
+html:is([data-border='subtle'], [data-border='strong'], [data-contrast='increased'], [data-contrast='high']):not(.dark) .ring-ink-200:not(:hover):not(:focus) { --tw-ring-color: rgb(var(--bd-l2)); }
+html.dark:is([data-border='subtle'], [data-border='strong'], [data-contrast='increased'], [data-contrast='high']) .dark\:border-ink-800:not(:hover):not(:focus):not(:focus-within) { border-color: rgb(var(--bd-d1)); }
+html.dark:is([data-border='subtle'], [data-border='strong'], [data-contrast='increased'], [data-contrast='high']) .dark\:border-ink-700:not(:hover):not(:focus):not(:focus-within) { border-color: rgb(var(--bd-d2)); }
+html.dark:is([data-border='subtle'], [data-border='strong'], [data-contrast='increased'], [data-contrast='high']) .dark\:divide-ink-800 > :not([hidden]) ~ :not([hidden]) { border-color: rgb(var(--bd-d1)); }
+html.dark:is([data-border='subtle'], [data-border='strong'], [data-contrast='increased'], [data-contrast='high']) .dark\:ring-ink-700:not(:hover):not(:focus) { --tw-ring-color: rgb(var(--bd-d2)); }
+
+/* ---------------------------------------------------------------- card surface: soft tint / outlined (panels = rounded boxes on the white / dark-panel colours) */
+html[data-card='soft']:not(.dark) .bg-white:is(.rounded-xl, .rounded-2xl):not(:hover) { background-color: color-mix(in srgb, rgb(var(--brand-500)) 5%, white); }
+html.dark[data-card='soft'] .dark\:bg-ink-900:is(.rounded-xl, .rounded-2xl):not(:hover) { background-color: color-mix(in srgb, rgb(var(--brand-400)) 8%, rgb(var(--ink-900))); }
+html[data-card='outlined']:not(.dark) .bg-white.rounded-2xl:not(:hover):not(.shadow-popover),
+html[data-card='outlined']:not(.dark) .bg-white.rounded-xl:not(:hover):not(.shadow-popover) { background-color: transparent; border-color: rgb(var(--bd-l2)); --tw-shadow: 0 0 #0000; --tw-shadow-colored: 0 0 #0000; }
+html.dark[data-card='outlined'] .dark\:bg-ink-900.rounded-2xl:not(:hover):not(.shadow-popover),
+html.dark[data-card='outlined'] .dark\:bg-ink-900.rounded-xl:not(:hover):not(.shadow-popover) { background-color: transparent; border-color: rgb(var(--bd-d2)); --tw-shadow: 0 0 #0000; --tw-shadow-colored: 0 0 #0000; }
+
+/* ---------------------------------------------------------------- flat styles: solid, un-blurred top bar */
+html:is([data-ui='classic'], [data-ui='minimal'], [data-ui='contrast']) header.sticky { -webkit-backdrop-filter: none; backdrop-filter: none; }
+html:is([data-ui='classic'], [data-ui='minimal'], [data-ui='contrast']):not(.dark) header.sticky { background-color: rgb(255 255 255); }
+html.dark:is([data-ui='classic'], [data-ui='minimal'], [data-ui='contrast']) header.sticky { background-color: rgb(var(--ink-950)); }
+
+/* ---------------------------------------------------------------- Glass: translucent, softly blurred surfaces (not in High contrast, which is always solid) */
+html[data-ui='glass']:not([data-contrast='high']):not(.dark) :is(.bg-white.rounded-xl, .bg-white.rounded-2xl, .bg-white.shadow-popover, aside.bg-white):not(button):not(:hover) {
+  background-color: rgb(var(--glass-card));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(150%);
+  --tw-shadow: 0 10px 30px -14px rgb(var(--brand-900) / calc(0.3 * var(--shadow-scale, 1))), inset 0 1px 0 rgb(255 255 255 / 0.65);
+  --tw-shadow-colored: var(--tw-shadow);
+  border-color: rgb(15 23 42 / 0.09);
+}
+html.dark[data-ui='glass']:not([data-contrast='high']) :is(.dark\:bg-ink-900.rounded-xl, .dark\:bg-ink-900.rounded-2xl, .dark\:bg-ink-900.shadow-popover, .dark\:bg-ink-950.shadow-popover, aside.dark\:bg-ink-950):not(button):not(:hover) {
+  background-color: rgb(var(--glass-card));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+  backdrop-filter: blur(var(--glass-blur)) saturate(140%);
+  --tw-shadow: 0 10px 30px -14px rgb(0 0 0 / calc(0.55 * var(--shadow-scale, 1))), inset 0 1px 0 rgb(255 255 255 / 0.07);
+  --tw-shadow-colored: var(--tw-shadow);
+  border-color: rgb(255 255 255 / 0.1);
+}
+/* the sidebar and top bar are panels of their own; popovers (menus, dialogs, drawers) are a little more opaque so what they hold stays easy to read */
+html[data-ui='glass']:not([data-contrast='high']):not(.dark) :is(aside.bg-white, header.sticky) { background-color: rgb(var(--glass-panel)); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(150%); backdrop-filter: blur(var(--glass-blur)) saturate(150%); }
+html.dark[data-ui='glass']:not([data-contrast='high']) :is(aside.dark\:bg-ink-950, header.sticky) { background-color: rgb(var(--glass-panel)); -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(140%); backdrop-filter: blur(var(--glass-blur)) saturate(140%); }
+html[data-ui='glass']:not([data-contrast='high']):not(.dark) :is(.bg-white.shadow-popover):not(:hover) { background-color: rgb(var(--glass-pop)); }
+html.dark[data-ui='glass']:not([data-contrast='high']) :is(.dark\:bg-ink-900.shadow-popover, .dark\:bg-ink-950.shadow-popover):not(:hover) { background-color: rgb(var(--glass-pop)); }
+/* secondary buttons and search/filter fields: lightly translucent, no blur of their own */
+html[data-ui='glass']:not([data-contrast='high']):not(.dark) :is(button.bg-white, a.bg-white, .bg-white.rounded-lg):not(:hover):not(:focus) { background-color: rgb(255 255 255 / 0.6); }
+html.dark[data-ui='glass']:not([data-contrast='high']) :is(button.dark\:bg-ink-900, a.dark\:bg-ink-900, .dark\:bg-ink-900.rounded-lg):not(:hover):not(:focus) { background-color: rgb(15 23 42 / 0.55); }
+/* data tables, forms and nested panels stay highly readable: nearly opaque, and never a second blur inside a blurred panel */
+html[data-ui='glass']:not([data-contrast='high']):not(.dark) :is(.bg-white.rounded-xl, .bg-white.rounded-2xl):is(:has(table), :has(form), :has(input, select, textarea)) { background-color: rgb(var(--glass-dense)); -webkit-backdrop-filter: none; backdrop-filter: none; }
+html.dark[data-ui='glass']:not([data-contrast='high']) :is(.dark\:bg-ink-900.rounded-xl, .dark\:bg-ink-900.rounded-2xl):is(:has(table), :has(form), :has(input, select, textarea)) { background-color: rgb(var(--glass-dense)); -webkit-backdrop-filter: none; backdrop-filter: none; }
+html[data-ui='glass']:not([data-contrast='high']) :is(.rounded-xl, .rounded-2xl, .shadow-popover, aside) :is(.bg-white.rounded-xl, .bg-white.rounded-2xl, .dark\:bg-ink-900.rounded-xl, .dark\:bg-ink-900.rounded-2xl) { -webkit-backdrop-filter: none; backdrop-filter: none; }
+/* browsers without backdrop-filter get (nearly) opaque surfaces instead of unreadable see-through ones */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  html[data-ui='glass'] { --glass-card: 255 255 255 / 0.97; --glass-panel: 255 255 255 / 0.97; --glass-pop: 255 255 255 / 0.99; }
+  html.dark[data-ui='glass'] { --glass-card: 15 23 42 / 0.97; --glass-panel: 2 6 23 / 0.97; --glass-pop: 15 23 42 / 0.99; }
+}
+
+/* ---------------------------------------------------------------- accessibility: focus, disabled controls, status badges */
+html:is([data-contrast='increased'], [data-contrast='high']) :is(a, button, input, select, textarea, summary, [tabindex]):focus-visible { outline: 2px solid rgb(var(--brand-600)); outline-offset: 2px; }
+html.dark:is([data-contrast='increased'], [data-contrast='high']) :is(a, button, input, select, textarea, summary, [tabindex]):focus-visible { outline-color: rgb(var(--brand-400)); }
+html[data-contrast='high'] :is(a, button, input, select, textarea, summary, [tabindex]):focus-visible { outline-width: 3px; outline-color: rgb(var(--ink-900)); box-shadow: 0 0 0 6px rgb(var(--brand-300) / 0.9); }
+html.dark[data-contrast='high'] :is(a, button, input, select, textarea, summary, [tabindex]):focus-visible { outline-color: rgb(255 255 255); box-shadow: 0 0 0 6px rgb(var(--brand-500) / 0.9); }
+html:is([data-contrast='increased'], [data-contrast='high']) :is(button, input, select, textarea, [aria-disabled='true']):disabled,
+html:is([data-contrast='increased'], [data-contrast='high']) [aria-disabled='true'] { opacity: 0.55; filter: grayscale(0.7); cursor: not-allowed; outline: 1px dashed currentColor; outline-offset: -3px; }
+html[data-contrast='high'] span.rounded-full.ring-inset { box-shadow: inset 0 0 0 2px currentColor; font-weight: 700; }
+html[data-contrast='high'] :is(.crm-table, table) :is(th, td) { border-color: rgb(var(--bd-l1)); }
+html.dark[data-contrast='high'] :is(.crm-table, table) :is(th, td) { border-color: rgb(var(--bd-d1)); }
+html[data-contrast='high'] a:not([class]) { text-decoration: underline; }
+
+/* ---------------------------------------------------------------- density (comfortable = the default: no overrides) */
+html[data-density='compact'] table.table-fixed tbody tr, html[data-density='compact'] .crm-table td { height: 2.75rem; }
+html[data-density='compact'] table.table-fixed :is(td, th), html[data-density='compact'] .crm-table :is(td, th) { padding-top: 0.25rem; padding-bottom: 0.25rem; }
+html[data-density='compact'] table.table-fixed thead tr, html[data-density='compact'] .crm-table th { height: 2.25rem; }
+html[data-density='spacious'] table.table-fixed tbody tr, html[data-density='spacious'] .crm-table td { height: 4.25rem; }
+html[data-density='spacious'] table.table-fixed :is(td, th), html[data-density='spacious'] .crm-table :is(td, th) { padding-top: 0.75rem; padding-bottom: 0.75rem; }
+html[data-density='spacious'] table.table-fixed thead tr, html[data-density='spacious'] .crm-table th { height: 3.25rem; }
+html[data-density='compact'] :is(.rounded-xl, .rounded-2xl).p-6 { padding: 1.1rem; }
+html[data-density='compact'] :is(.rounded-xl, .rounded-2xl).p-5 { padding: 0.9rem; }
+html[data-density='compact'] :is(.rounded-xl, .rounded-2xl).p-4 { padding: 0.75rem; }
+html[data-density='spacious'] :is(.rounded-xl, .rounded-2xl).p-6 { padding: 1.9rem; }
+html[data-density='spacious'] :is(.rounded-xl, .rounded-2xl).p-5 { padding: 1.5rem; }
+html[data-density='spacious'] :is(.rounded-xl, .rounded-2xl).p-4 { padding: 1.25rem; }
+html[data-density='compact'] main :is(.gap-6, .gap-5) { gap: 0.875rem; }
+html[data-density='compact'] main .gap-4 { gap: 0.7rem; }
+html[data-density='compact'] main :is(.space-y-6, .space-y-5) > :not([hidden]) ~ :not([hidden]) { margin-top: 0.875rem; }
+html[data-density='spacious'] main :is(.gap-6, .gap-5) { gap: 1.75rem; }
+html[data-density='spacious'] main .gap-4 { gap: 1.35rem; }
+html[data-density='spacious'] main :is(.space-y-6, .space-y-5) > :not([hidden]) ~ :not([hidden]) { margin-top: 1.75rem; }
+html[data-density='compact'] :is(button, input:not([type='checkbox']):not([type='radio']), select).h-9:not(.w-9) { height: 2rem; }
+html[data-density='spacious'] :is(button, input:not([type='checkbox']):not([type='radio']), select).h-9:not(.w-9) { height: 2.5rem; }
+html[data-density='compact'] aside nav a { padding-top: 0.3rem; padding-bottom: 0.3rem; }
+html[data-density='spacious'] aside nav a { padding-top: 0.7rem; padding-bottom: 0.7rem; }
+
+/* ---------------------------------------------------------------- readability: looser lines and letter spacing (tables keep their fixed row heights) */
+html[data-read='enhanced'] body { line-height: 1.65; letter-spacing: 0.012em; word-spacing: 0.05em; }
+html[data-read='enhanced'] :is(p, li, dd, label) { line-height: 1.65; }
+html[data-read='enhanced'] .crm-table { letter-spacing: 0.01em; }
+
+/* ---------------------------------------------------------------- motion: respect the system "reduce motion" setting (spinners keep spinning: they show that something is loading) */
+@media (prefers-reduced-motion: reduce) {
+  html *:not(.animate-spin), html *:not(.animate-spin)::before, html *:not(.animate-spin)::after {
+    animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important;
+  }
+}

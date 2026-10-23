@@ -1,6 +1,7 @@
 import { AnimatePresence, motion } from 'framer-motion'
 import { X } from 'lucide-react'
 import { useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import clsx from 'clsx'
 
 const SIZES = { sm: 'max-w-md', md: 'max-w-xl', lg: 'max-w-2xl', xl: 'max-w-3xl' }
@@ -17,7 +18,8 @@ export function Drawer({ open, onClose, title, subtitle, children, footer, size 
     }
   }, [open, onClose])
 
-  return (
+  // Rendered into <body> (like Modal): a card with a backdrop blur (the Glass style) or an animated page would otherwise become the containing block of this `position: fixed` overlay.
+  return createPortal(
     <AnimatePresence>
       {open && (
         <div className="fixed inset-0 z-50 flex justify-end">
@@ -49,6 +51,7 @@ export function Drawer({ open, onClose, title, subtitle, children, footer, size 
           </motion.div>
         </div>
       )}
-    </AnimatePresence>
+    </AnimatePresence>,
+    document.body,
   )
 }

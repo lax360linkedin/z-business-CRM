@@ -1,137 +1,109 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
+import {
+  ACCENTS, DEFAULT_PREFS, applyToDocument, buildScale, accentHexFor, effectiveContrast, prefersMoreContrast, readStore, samePrefs, sanitize, supportsContrastQuery, writeStore,
+} from '../theme/personalization'
 
 const ThemeContext = createContext(null)
 
-const MODE_KEY = 'business_crm_theme_mode_v1'
-const ACCENT_KEY = 'business_crm_theme_accent_v1'
-const DEFAULT_ACCENT = 'purple'
+export { ACCENTS }
 
-// The single source of truth for every accent option the app offers — Settings → Appearance,
-// the navbar quick-switch (if any) and this context all read from this one list rather than
-// duplicating color names/labels/hexes in multiple places. `hex` is the 600-shade, used only
-// where a literal color string is unavoidable (Recharts fill/stroke props can't consume a
-// Tailwind class) — see accentHex below. Every other UI use the `brand-*` Tailwind classes,
-// which resolve through the CSS custom properties in src/index.css.
-export const ACCENTS = [
-  { key: 'purple', label: 'Purple', hex: '#9333ea', swatch: 'bg-purple-600' },
-  { key: 'indigo', label: 'Indigo', hex: '#4f46e5', swatch: 'bg-indigo-600' },
-  { key: 'blue', label: 'Blue', hex: '#2563eb', swatch: 'bg-blue-600' },
-  { key: 'cyan', label: 'Cyan', hex: '#0891b2', swatch: 'bg-cyan-600' },
-  { key: 'teal', label: 'Teal', hex: '#0d9488', swatch: 'bg-teal-600' },
-  { key: 'green', label: 'Green', hex: '#16a34a', swatch: 'bg-green-600' },
-  { key: 'emerald', label: 'Emerald', hex: '#059669', swatch: 'bg-emerald-600' },
-  { key: 'orange', label: 'Orange', hex: '#ea580c', swatch: 'bg-orange-600' },
-  { key: 'rose', label: 'Rose', hex: '#e11d48', swatch: 'bg-rose-600' },
-  { key: 'red', label: 'Red', hex: '#dc2626', swatch: 'bg-red-600' },
-]
-const VALID_ACCENTS = ACCENTS.map((a) => a.key)
-
-// Polished presets for Settings → Appearance — each just pairs an accent with a suggested
-// mode, since the accent tokens themselves already carry both their light and dark values.
-export const THEME_PRESETS = [
-  { key: 'purple', label: 'Default Purple', accent: 'purple' },
-  { key: 'indigo', label: 'Indigo', accent: 'indigo' },
-  { key: 'blue', label: 'Ocean Blue', accent: 'blue' },
-  { key: 'emerald', label: 'Emerald', accent: 'emerald' },
-  { key: 'rose', label: 'Rose', accent: 'rose' },
-  { key: 'orange', label: 'Orange', accent: 'orange' },
-]
-
-function readStoredMode() {
-  try {
-    const stored = localStorage.getItem(MODE_KEY)
-    if (stored === 'light' || stored === 'dark' || stored === 'system') return stored
-  } catch {
-    // storage may be unavailable
-  }
-  return 'system'
-}
-
-function readStoredAccent() {
-  try {
-    const stored = localStorage.getItem(ACCENT_KEY)
-    if (stored && VALID_ACCENTS.includes(stored)) return stored
-  } catch {
-    // storage may be unavailable
-  }
-  return DEFAULT_ACCENT
-}
-
-function systemPrefersDark() {
-  return typeof window !== 'undefined' && window.matchMedia('(prefers-color-scheme: dark)').matches
-}
+const matches = (query) => typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia(query).matches
 
 /**
- * Centralized appearance system: `mode` (light/dark/system, what the user picked) resolves to
- * `theme` (the actual light/dark rendered right now). Both `mode` and `accent` persist to
- * localStorage under their own dedicated keys (never scattered into other storage) and are
- * applied to <html> as the `dark` class + `data-accent` attribute — every themed component in
- * the app (Sidebar, Header, cards, tables, forms, modals, charts…) reads through those two
- * mechanisms via Tailwind's `dark:` variant and the `brand-*` CSS-variable-backed color scale,
- * so a mode or accent change repaints the entire CRM instantly with no reload and no per-page
- * plumbing required.
+ * The CRM's personalization system (Settings → Personalization). Everything visual is a small set of preferences (see theme/personalization.js) that this provider writes onto <html>
+ * as the `dark` class, data-* attributes and CSS variables - the stylesheet (theme/personalization.css, tailwind.config.js, index.css) does the rest, so a change repaints the whole app
+ * at once with no reload and no per-page code.
+ *
+ *  - `applied` is what is saved (in this browser, per signed-in person - see bindUser); `draft` is a set of changes being tried out on the Personalization page. The page shows the draft
+ *    everywhere straight away, and it only becomes the saved choice on applyDraft(); discardDraft() (or leaving the page) returns to the saved one.
+ *  - `mode` / `setMode` / `accent` / `setAccent` / `toggleTheme` keep working exactly as before for the header's quick toggle and the charts; they save immediately.
  */
 export function ThemeProvider({ children }) {
-  const [mode, setModeState] = useState(readStoredMode)
-  const [accent, setAccentState] = useState(readStoredAccent)
-  const [systemDark, setSystemDark] = useState(systemPrefersDark)
+  const storeRef = useRef(null)
+  if (storeRef.current === null) storeRef.current = readStore()
+  const userIdRef = useRef(null)
+  const [applied, setApplied] = useState(() => storeRef.current.last || DEFAULT_PREFS)
+  const [draft, setDraft] = useState(null)
+  const [systemDark, setSystemDark] = useState(() => matches('(prefers-color-scheme: dark)'))
+  const [deviceWantsMore, setDeviceWantsMore] = useState(prefersMoreContrast)
 
-  // Track the OS preference live so `mode: 'system'` updates without a reload if the user
-  // flips their OS theme while the app is open.
+  // follow the device live, so System mode and Automatic contrast update without a reload
   useEffect(() => {
-    const mql = window.matchMedia('(prefers-color-scheme: dark)')
-    const onChange = (e) => setSystemDark(e.matches)
-    mql.addEventListener('change', onChange)
-    return () => mql.removeEventListener('change', onChange)
+    if (!window.matchMedia) return undefined
+    const dark = window.matchMedia('(prefers-color-scheme: dark)')
+    const more = window.matchMedia('(prefers-contrast: more)')
+    const onDark = (e) => setSystemDark(e.matches)
+    const onMore = (e) => setDeviceWantsMore(e.matches)
+    dark.addEventListener('change', onDark)
+    more.addEventListener('change', onMore)
+    return () => { dark.removeEventListener('change', onDark); more.removeEventListener('change', onMore) }
   }, [])
 
-  const theme = mode === 'system' ? (systemDark ? 'dark' : 'light') : mode
+  const prefs = draft || applied
+  const theme = prefs.mode === 'system' ? (systemDark ? 'dark' : 'light') : prefs.mode
+  const contrast = effectiveContrast(prefs, deviceWantsMore)
 
-  useEffect(() => {
-    document.documentElement.classList.toggle('dark', theme === 'dark')
-  }, [theme])
+  useLayoutEffect(() => { applyToDocument(prefs, { dark: theme === 'dark', deviceWantsMore }) }, [prefs, theme, deviceWantsMore])
 
-  useEffect(() => {
-    document.documentElement.setAttribute('data-accent', accent)
-  }, [accent])
+  const commit = useCallback((next) => {
+    const clean = sanitize(next)
+    const store = storeRef.current
+    if (userIdRef.current) store.users = { ...store.users, [userIdRef.current]: clean }
+    writeStore(store, clean)
+    setApplied(clean)
+    return clean
+  }, [])
 
-  const setMode = useCallback((next) => {
-    setModeState(next)
-    try {
-      localStorage.setItem(MODE_KEY, next)
-    } catch {
-      // storage may be unavailable — appearance just won't persist across reloads
+  /** Called when the signed-in person changes: they get their own saved look back; someone with none yet starts from the standard look. */
+  const bindUser = useCallback((id) => {
+    const key = id ? String(id) : null
+    if (userIdRef.current === key) return
+    userIdRef.current = key
+    if (!key) return
+    setDraft(null)
+    const own = storeRef.current.users[key]
+    if (own) {
+      const clean = sanitize(own)
+      writeStore(storeRef.current, clean)
+      setApplied(clean)
+    } else {
+      // nobody has signed in since Personalization existed: keep the look this browser already had (the old mode / accent); any later newcomer starts from the standard look
+      const first = Object.keys(storeRef.current.users).length === 0
+      setApplied((cur) => {
+        const start = first ? cur : DEFAULT_PREFS
+        storeRef.current.users = { ...storeRef.current.users, [key]: start }
+        writeStore(storeRef.current, start)
+        return start
+      })
     }
   }, [])
 
-  const setAccent = useCallback((next) => {
-    if (!VALID_ACCENTS.includes(next)) return
-    setAccentState(next)
-    try {
-      localStorage.setItem(ACCENT_KEY, next)
-    } catch {
-      // storage may be unavailable
-    }
-  }, [])
-
-  // Backward-compatible explicit flip (used by the navbar's quick Sun/Moon toggle) — always
-  // resolves to a concrete light/dark choice, overriding 'system' with whichever it isn't.
+  const setMode = useCallback((mode) => {
+    commit({ ...applied, mode })
+    setDraft((d) => (d ? { ...d, mode } : d))
+  }, [applied, commit])
+  const setAccent = useCallback((accent) => {
+    commit({ ...applied, accent })
+    setDraft((d) => (d ? { ...d, accent } : d))
+  }, [applied, commit])
+  // the header's quick Sun/Moon flip: always lands on an explicit light or dark choice
   const toggleTheme = useCallback(() => setMode(theme === 'dark' ? 'light' : 'dark'), [theme, setMode])
 
-  const accentMeta = useMemo(() => ACCENTS.find((a) => a.key === accent) || ACCENTS[0], [accent])
+  const updateDraft = useCallback((patch) => setDraft((d) => sanitize({ ...(d || applied), ...(typeof patch === 'function' ? patch(d || applied) : patch) })), [applied])
+  const applyDraft = useCallback(() => { if (draft) commit(draft); setDraft(null) }, [draft, commit])
+  const discardDraft = useCallback(() => setDraft(null), [])
+  const resetDraft = useCallback(() => setDraft({ ...DEFAULT_PREFS }), [])
+  const dirty = !!draft && !samePrefs(draft, applied)
+
+  const scale = useMemo(() => buildScale(accentHexFor(prefs), theme === 'dark'), [prefs, theme])
+  const accentHex = prefs.accent === 'purple' ? '#9333ea' : scale.hex600
 
   const value = useMemo(() => ({
-    mode,
-    setMode,
-    theme,
-    toggleTheme,
-    accent,
-    setAccent,
-    accentHex: accentMeta.hex,
-    accentLabel: accentMeta.label,
-    accents: ACCENTS,
-    presets: THEME_PRESETS,
-  }), [mode, setMode, theme, toggleTheme, accent, setAccent, accentMeta])
+    mode: prefs.mode, setMode, theme, toggleTheme,
+    accent: prefs.accent, setAccent, accentHex, accentAdjusted: scale.adjusted, accents: ACCENTS,
+    prefs, applied, draft, dirty, contrast, deviceWantsMore, contrastQuerySupported: supportsContrastQuery(),
+    updateDraft, applyDraft, discardDraft, resetDraft, bindUser,
+  }), [prefs, applied, draft, dirty, theme, contrast, deviceWantsMore, accentHex, scale.adjusted, setMode, setAccent, toggleTheme, updateDraft, applyDraft, discardDraft, resetDraft, bindUser])
 
   return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>
 }
@@ -140,4 +112,10 @@ export function useTheme() {
   const ctx = useContext(ThemeContext)
   if (!ctx) throw new Error('useTheme must be used within ThemeProvider')
   return ctx
+}
+
+/** Sits inside the auth provider and tells the theme who is signed in, so each person keeps their own personalization in this browser. */
+export function useBindThemeUser(userId) {
+  const { bindUser } = useTheme()
+  useEffect(() => { bindUser(userId) }, [userId, bindUser])
 }

@@ -3,7 +3,7 @@ import {
   FileText, FileSignature, Activity, ListChecks, CalendarDays, Package, FolderKanban,
   FileCheck, ClipboardCheck, FolderOpen, Receipt, CreditCard, Wallet, Megaphone, Target, LineChart,
   Mail, MessageCircle, History, LifeBuoy, BarChart3, Sparkles, Bell, UserCog, UsersRound,
-  ShieldCheck, Settings, Fingerprint, MapPin, Network, Percent, Lock, KeyRound, Zap,
+  ShieldCheck, Settings, Fingerprint, MapPin, Network,
 } from 'lucide-react'
 
 export const NAV_SECTIONS = [
@@ -99,57 +99,38 @@ export const NAV_SECTIONS = [
       { label: 'Teams', to: '/teams', icon: UsersRound },
     ],
   },
-  // Administration: everything that configures or controls the system itself. `label` is the permission module (unchanged, so every stored role keeps its rights);
-  // "Settings" is the module that guards the configuration pages (company profile, tax, security, logs, communication, automation, module settings) - shown here as "Administration".
+  // Administration: running the organisation itself - branches, who may sign in and what each role may do. These three modules are the Super Admin's alone (no stored permission can grant them).
   {
     title: 'Administration',
     items: [
-      { label: 'Settings', display: 'Administration', to: '/administration', icon: Settings, exclude: ['/administration/branches', '/administration/users', '/administration/roles-permissions'] },
       { label: 'Branches', to: '/administration/branches', icon: MapPin },
       { label: 'User Management', to: '/administration/users', icon: Fingerprint },
       { label: 'Roles & Permissions', to: '/administration/roles-permissions', icon: ShieldCheck },
     ],
   },
+  // Settings: workspace configuration and personal preferences (company profile, personalization, tax, module settings, security and logs, notifications, e-mail, WhatsApp, automation).
+  {
+    items: [{ label: 'Settings', to: '/settings', icon: Settings }],
+  },
 ]
 
 /**
- * The Administration area, grouped the way people look for things. `module` is the permission module that must be viewable for an entry to appear (a Super Admin sees all of them,
- * an Admin the ones guarded by "Settings"). The per-module configuration pages (Leads, Invoices ...) are added to the "Module Configuration" group by the Administration page itself.
- * An entry with `external` opens a page of another module (so nothing is duplicated here).
+ * The Administration overview (/administration): what is run from there. `module` is the permission module that must be viewable for an entry to appear. An entry with `external`
+ * opens a page of another module (so nothing is duplicated here).
  */
 export const ADMIN_CATEGORIES = [
   {
-    key: 'organization', title: 'Organization', description: 'Your company, its branches and the defaults every document uses.',
+    key: 'organization', title: 'Organization', description: 'Your branches and the people and teams in them.',
     items: [
-      { key: 'company-profile', label: 'Company Profile', to: '/administration/company-profile', icon: Building2, module: 'Settings', description: 'Company name, contact details, GST number and the logo shown on documents.' },
       { key: 'branches', label: 'Branches', to: '/administration/branches', icon: MapPin, module: 'Branches', description: 'Branch offices, their administrators and a side-by-side comparison.' },
       { key: 'departments', label: 'Departments & Teams', to: '/employees?view=departments', icon: Network, module: 'Employees', external: true, description: 'Managed in Employees, so they stay linked to the people in them.' },
-      { key: 'tax-settings', label: 'Tax Settings', to: '/administration/tax-settings', icon: Percent, module: 'Settings', description: 'The default GST rate and whether prices include tax.' },
     ],
   },
   {
-    key: 'access', title: 'Users & Access', description: 'Who can sign in, what they may do and how sessions are protected.',
+    key: 'access', title: 'Users & Access', description: 'Who can sign in and what they may do.',
     items: [
       { key: 'users', label: 'User Management', to: '/administration/users', icon: Fingerprint, module: 'User Management', description: 'Create logins, set roles, reset passwords and manage account status.' },
       { key: 'roles-permissions', label: 'Roles & Permissions', to: '/administration/roles-permissions', icon: ShieldCheck, module: 'Roles & Permissions', description: 'What each role may view, create, edit, delete and export.' },
-      { key: 'security', label: 'Security', to: '/administration/security', icon: Lock, module: 'Settings', description: 'Password rules, session length and automatic sign-out.' },
-    ],
-  },
-  { key: 'modules', title: 'Module Configuration', description: 'The choices, statuses and rules each CRM module offers.', items: [] },
-  {
-    key: 'communication', title: 'Communication & Automation', description: 'Notifications, e-mail, WhatsApp and the n8n workflows that connect the CRM to other tools.',
-    items: [
-      { key: 'notification-settings', label: 'Notification Settings', to: '/administration/notification-settings', icon: Bell, module: 'Settings', description: 'Which events create an in-app notification.' },
-      { key: 'email-settings', label: 'Email Settings', to: '/administration/email-settings', icon: Mail, module: 'Settings', description: 'Whether e-mail sending is connected.' },
-      { key: 'whatsapp-settings', label: 'WhatsApp Settings', to: '/administration/whatsapp-settings', icon: MessageCircle, module: 'Settings', description: 'Whether WhatsApp messaging is connected.' },
-      { key: 'automation', label: 'Automation', to: '/administration/automation', icon: Zap, module: 'Settings', description: 'n8n connection, workflows and the run history.' },
-    ],
-  },
-  {
-    key: 'audit', title: 'Monitoring & Audit', description: 'Who signed in and what changed.',
-    items: [
-      { key: 'login-history', label: 'Login History', to: '/administration/login-history', icon: KeyRound, module: 'Settings', description: 'Every sign-in attempt: who, when, from where and whether it worked.' },
-      { key: 'audit-logs', label: 'Audit Logs', to: '/administration/audit-logs', icon: History, module: 'Settings', description: 'A read-only record of sign-ins, refusals and changes.' },
     ],
   },
 ]

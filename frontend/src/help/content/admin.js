@@ -2,11 +2,11 @@
 export const admin = {
   administration: {
     title: 'Administration',
-    purpose: 'The one place for everything that configures or controls the CRM itself: your company details, branches, users and their roles, security, the settings of each module, communication and automation, and the sign-in and audit logs.',
-    features: ['Five groups: Organization, Users & Access, Module Configuration, Communication & Automation, and Monitoring & Audit.', 'Each card opens the real page; nothing is repeated here, and you only see the pages your role is allowed to open.', 'Your own preferences (light or dark theme, accent colour, profile and password) are not here: they are under Settings in your profile menu.'],
-    actions: [['Overview / left menu', 'Jump to any administration page; the page you are on is highlighted.'], ['Cards', 'Each card opens that page.']],
-    tips: ['Branches, User Management and Roles & Permissions are for the Super Admin only. The other pages need access to Settings; people without it do not see Administration at all.'],
-    related: [['Settings (my preferences)', '/settings/appearance'], ['Branches', '/administration/branches'], ['User Management', '/administration/users']],
+    purpose: 'The place for running the organisation itself: its branches, the user accounts that can sign in, and what each role may do. It is for the Super Admin; the workspace configuration and your own preferences are in Settings.',
+    features: ['Cards for Branches, User Management, Roles & Permissions and the way to Departments & Teams (which live in Employees).', 'You only see the cards your role may open; anyone else is pointed to Settings.', 'The company profile, appearance, tax, module settings, security, logs, notifications, e-mail, WhatsApp and automation are in Settings, not here.'],
+    actions: [['Cards', 'Each card opens that page.'], ['Settings link', 'Opens Settings for everything else.']],
+    tips: ['Branches, User Management and Roles & Permissions can only be opened by the Super Admin, whatever a stored permission says.'],
+    related: [['Settings', '/settings'], ['Branches', '/administration/branches'], ['User Management', '/administration/users']],
   },
   branches: {
     title: 'Branch Management',
@@ -123,7 +123,7 @@ export const admin = {
       'Give it to the person; they set their own password at first sign-in.',
     ] }],
     tips: ['Changes to a role, branch or permission take effect on the person’s live session without them signing in again.', 'Only the Super Admin can open this page.'],
-    related: [['Employees', '/employees'], ['Roles & Permissions', '/administration/roles-permissions'], ['Security settings', '/administration/security']],
+    related: [['Employees', '/employees'], ['Roles & Permissions', '/administration/roles-permissions'], ['Security settings', '/settings/security']],
   },
 
   userDetail: {
@@ -181,10 +181,10 @@ export const admin = {
   },
 }
 
-// Administration pages (matched by the part after /administration/) and the personal Settings page (/settings)
+// Settings pages (matched by the part after /settings/)
 export const settings = {
   'company-profile': {
-    title: 'Administration · Company Profile',
+    title: 'Settings · Company Profile',
     purpose: 'Your organisation’s basic details and logo. They appear on quotations, invoices and the sign-in screens.',
     features: ['Company name, industry, phone, email, website, GST number and address.', 'The company logo, shown in the sidebar, on the sign-in screens, in quotation previews and PDFs and as the browser tab icon.'],
     actions: [
@@ -195,51 +195,79 @@ export const settings = {
     ],
     related: [['Quotation templates', '/quotation-templates']],
   },
-  appearance: {
-    title: 'Settings · Appearance',
-    purpose: 'Choose how the CRM looks for you: light or dark mode and the accent colour.',
-    features: ['Light, Dark, or match your device automatically, applied across the whole CRM instantly.', 'An accent colour (purple is the default) that updates the sidebar, buttons, links, charts and active states.', 'A live preview of the sidebar, top bar, buttons, cards and inputs.'],
-    actions: [['Light / Dark / Automatic', 'Pick one and the whole app switches immediately.'], ['Accent colour', 'Pick a colour pairing; it is remembered on this device.']],
-    related: [['My profile', '/profile'], ['Change password', '/change-password']],
+  personalization: {
+    title: 'Settings · Personalization',
+    purpose: 'Make the CRM look and feel the way you work best: light, dark or system mode, an accent colour, an interface style, contrast, surfaces, text size and spacing. It only changes how the CRM looks for you, never what you can see or do.',
+    features: [
+      'Mode: Light, Dark, or System (follows your device), each with a small preview.',
+      'Accent colour: 20 ready-made palettes or any colour you type as HEX. Every palette gets matching light and dark shades, and text on it is kept readable.',
+      'Interface style: Classic, Modern (the standard look), Glass, Minimal or High Contrast, each with a preview card.',
+      'Contrast & accessibility: Standard, Increased, High, or Automatic (follows your device when it reports a more-contrast setting).',
+      'Background and surfaces: background type, card surface, border strength, shadow strength, corner radius, and the blur used by the Glass style.',
+      'Text size (Small / Medium / Large), density (Compact / Comfortable / Spacious) and readability (Standard / Enhanced).',
+      'A live preview panel; the whole CRM also shows your changes while you are on this page.',
+    ],
+    actions: [
+      ['Choosing an option', 'Shows it straight away everywhere. Nothing is saved until you press Apply Changes.'],
+      ['Apply Changes', 'Saves the look for your account on this device and keeps it as you move around the CRM and after you sign in again.'],
+      ['Discard', 'Throws away the changes you have not applied. Leaving the page does the same.'],
+      ['Reset to Default', 'Previews the standard look (Modern, purple, system mode); press Apply Changes to keep it.'],
+      ['Custom colour', 'Type a HEX colour such as #0f766e or use the colour picker. If it is too light for readable text it is darkened slightly and you are told.'],
+    ],
+    related: [['My profile', '/profile'], ['Company Profile', '/settings/company-profile']],
   },
   'tax-settings': {
-    title: 'Administration · Tax Settings',
+    title: 'Settings · Tax Settings',
     purpose: 'The tax defaults applied to new quotations and invoices.',
     features: ['GST number, default tax rate and whether prices include tax.'],
     actions: [['Prices are tax-inclusive', 'Switch on if the listed price already includes tax; off adds tax on top.'], ['Save Changes', 'Stores the defaults (administrators only).']],
-    related: [['Invoice settings', '/administration/modules/invoices']],
+    related: [['Invoice settings', '/settings/modules/invoices']],
+  },
+  users: {
+    title: 'Settings · Users',
+    purpose: 'A pointer to where user accounts are managed.',
+    features: ['Accounts are managed in Employees and, for the Super Admin, in Administration → User Management, so the same people are not kept in two places.'],
+    actions: [['Go to Employees', 'Opens the employee directory.'], ['Open User Management', 'Opens the logins and roles page (Super Admin only).']],
+    related: [['User Management', '/administration/users'], ['Employees', '/employees']],
+  },
+  departments: {
+    title: 'Settings · Departments',
+    purpose: 'A pointer to where departments and teams are managed.',
+    features: ['Departments and teams are part of the Employees page.'],
+    actions: [['Open Employees', 'Go to the Departments and Teams tabs to create or edit them.']],
+    related: [['Employees', '/employees']],
   },
   security: {
-    title: 'Administration · Security',
+    title: 'Settings · Security',
     purpose: 'Sign-in security for the whole workspace, including how long the CRM can sit unused before it signs people out.',
     features: ['How sign-in and sessions are protected; every rule shown is enforced by the server.', 'The inactivity timeout, with its current value and whether it is the default.', 'Only administrators can see the security configuration.'],
     actions: [['Inactivity timeout', 'Super Admin only: choose how many minutes of no activity sign a person out (5 to 480). People get a warning before it happens.'], ['Save', 'Applies it to everyone on their next activity.']],
-    related: [['Login History', '/administration/login-history'], ['User Management', '/administration/users']],
+    related: [['Login History', '/settings/login-history'], ['User Management', '/administration/users']],
   },
   'login-history': {
-    title: 'Administration · Login History',
+    title: 'Settings · Login History',
     purpose: 'Every sign-in attempt across your workspace: who, when, from where (IP address) and whether it succeeded.',
     features: ['User, event, IP address, status and date and time for each attempt.'],
     actions: [['Search and filters', 'Find a person or a kind of event.'], ['Status column', 'Failed or denied attempts help you spot someone trying to get into an account.']],
-    related: [['Audit Logs', '/administration/audit-logs']],
+    related: [['Audit Logs', '/settings/audit-logs']],
   },
   'audit-logs': {
-    title: 'Administration · Audit Logs',
+    title: 'Settings · Audit Logs',
     purpose: 'A read-only record of sign-ins, refusals and changes across your workspace. Entries are only ever added; they cannot be edited or deleted.',
     features: ['Each entry shows the action, module, user, result and time.'],
     actions: [['Search box (action, user, record…)', 'Find entries by action, person or record.']],
     tips: ['Deleting an employee, changing the logo, changing permissions and automation changes all appear here.'],
-    related: [['Login History', '/administration/login-history']],
+    related: [['Login History', '/settings/login-history']],
   },
   'notification-settings': {
-    title: 'Administration · Notification Settings',
+    title: 'Settings · Notification Settings',
     purpose: 'Choose which events create an in-app notification for your team.',
     features: ['Notifications appear in the bell at the top of the CRM. Email, SMS and push delivery are not connected to this workspace.'],
     actions: [['Toggles', 'Turn a notification type on or off.'], ['Save Changes', 'Stores your choices (administrators only).']],
     related: [['Notifications', '/notifications']],
   },
   'email-settings': {
-    title: 'Administration · Email Settings',
+    title: 'Settings · Email Settings',
     purpose: 'Shows whether email sending is connected for this CRM.',
     features: ['The connection status and what is needed to connect it.'],
     actions: [['Status panel', 'Administrators can see whether email is connected; nothing is sent until the server is configured.']],
@@ -247,14 +275,14 @@ export const settings = {
     related: [['Email log', '/communication/email']],
   },
   'whatsapp-settings': {
-    title: 'Administration · WhatsApp Settings',
+    title: 'Settings · WhatsApp Settings',
     purpose: 'Shows whether WhatsApp messaging is connected for this CRM.',
     features: ['The connection status and what is needed to connect it.'],
     actions: [['Status panel', 'Administrators can see whether WhatsApp is connected; nothing is sent until the server is configured.']],
     related: [['WhatsApp log', '/communication/whatsapp']],
   },
   automation: {
-    title: 'Administration · Automation',
+    title: 'Settings · Automation',
     purpose: 'Connect n8n so CRM events (a new lead, a deal won, an overdue-follow-up insight) can start your business workflows, and see exactly what happened to each one.',
     features: [
       'The n8n connection (address and a shared secret), then a list of workflows, each listening to one CRM event.',
@@ -281,7 +309,7 @@ export const settings = {
   },
 }
 
-// Administration → Module Configuration pages (matched by /administration/modules/:key)
+// Settings → module option pages (matched by /settings/modules/:key)
 const MODULE_SETTINGS = {
   leads: ['Leads', 'the statuses’ reasons, sources, priorities and other choices offered on lead forms, filters and the qualify, unqualified and lost dialogs'],
   enquiries: ['Enquiries', 'the choices offered on enquiry forms, filters, assignment and qualification'],
@@ -303,7 +331,7 @@ export function moduleSettingsHelp(key) {
   if (!m) return null
   const [label, what] = m
   return {
-    title: `Administration · ${label}`,
+    title: `Settings · ${label}`,
     purpose: `Control ${what}. These settings change what people can choose in the ${label.toLowerCase()} part of the CRM, without changing any code.`,
     features: ['Each list shows its current choices, in the order people see them.', 'Everyone can see the settings; only the Super Admin can change them.'],
     actions: [
@@ -315,6 +343,6 @@ export function moduleSettingsHelp(key) {
       ['Reset to defaults', 'Restores the built-in list.'],
     ],
     tips: ['Turning a choice off is safer than deleting it when it is already in use.'],
-    related: [['Administration overview', '/administration']],
+    related: [['Settings overview', '/settings/company-profile']],
   }
 }

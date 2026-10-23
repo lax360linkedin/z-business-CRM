@@ -73,7 +73,7 @@ export const work = {
       ['Save', 'Applies the settings; the server enforces them for everybody straight away.'],
     ],
     tips: ['Only Administrators can open this page.'],
-    related: [['Tasks', '/tasks'], ['Automation', '/administration/automation']],
+    related: [['Tasks', '/tasks'], ['Automation', '/settings/automation']],
   },
 
   calendar: {
@@ -113,7 +113,7 @@ export const work = {
       ['Open an item', 'Shows its price history and where it is used; Edit, Duplicate or Delete from there.'],
     ],
     tips: ['Changing a price affects new quotations only: existing ones keep the price they were created with.'],
-    related: [['Quotations', '/quotations'], ['Product settings', '/administration/modules/products']],
+    related: [['Quotations', '/quotations'], ['Product settings', '/settings/modules/products']],
   },
 
   productDetail: {
@@ -173,7 +173,7 @@ export const work = {
       ['List / Kanban / Calendar', 'Changes the view; on the board, drag a contract to change its status.'],
       ['Search box and filters', 'Find contracts by number, title, customer or company.'],
     ],
-    related: [['Contract templates', '/contracts/templates'], ['Documents', '/documents'], ['Contract settings', '/administration/modules/contracts']],
+    related: [['Contract templates', '/contracts/templates'], ['Documents', '/documents'], ['Contract settings', '/settings/modules/contracts']],
   },
 
   contractTemplates: {
@@ -220,7 +220,7 @@ export const work = {
       ['Settings', 'Administrators: categories, allowed file types, size limits and retention.'],
     ],
     tips: ['You only see documents you own, were given access to, or your role may open.', 'Deleted documents wait in the Bin until the retention period ends.'],
-    related: [['Document settings', '/administration/modules/documents']],
+    related: [['Document settings', '/settings/modules/documents']],
   },
 
   documentDetail: {

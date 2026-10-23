@@ -109,7 +109,7 @@ export const sales = {
       ['Set Default', 'Uses this template for new quotations.'],
       ['Edit / Replace / Delete', 'Changes the template’s content, swaps its file, or removes it.'],
     ],
-    related: [['Quotations', '/quotations'], ['Company logo', '/administration/company-profile']],
+    related: [['Quotations', '/quotations'], ['Company logo', '/settings/company-profile']],
   },
 
   quotationTemplateEditor: {

@@ -11,6 +11,8 @@ const FLAT_ITEMS = NAV_SECTIONS.flatMap((section) => section.items).sort((a, b) 
  */
 export function getModuleForPath(pathname) {
   if (pathname === '/departments' || pathname.startsWith('/departments/')) return 'Employees'
+  // the personal side of Settings (how the CRM looks for me) belongs to every signed-in person; the rest of Settings is the "Settings" module
+  if (pathname === '/settings' || pathname === '/settings/personalization' || pathname === '/settings/appearance') return null
   const match = FLAT_ITEMS.find((item) => pathname === item.to || pathname.startsWith(`${item.to}/`))
   return match?.label ?? null
 }

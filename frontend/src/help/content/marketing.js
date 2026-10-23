@@ -40,7 +40,7 @@ export const marketing = {
       ['Export', 'Downloads the sources currently listed.'],
     ],
     tips: ['Sources that are in use can be switched off instead of deleted, so history stays intact.'],
-    related: [['Enquiries', '/enquiries'], ['Marketing Analytics', '/marketing-analytics'], ['Lead settings', '/administration/modules/leads']],
+    related: [['Enquiries', '/enquiries'], ['Marketing Analytics', '/marketing-analytics'], ['Lead settings', '/settings/modules/leads']],
   },
 
   leadSourceDetail: {
@@ -74,7 +74,7 @@ export const marketing = {
       ['Open an entry', 'Goes to the record the email was logged against.'],
     ],
     tips: ['Nothing is sent from this page.'],
-    related: [['Communication History', '/communication/history'], ['Email settings', '/administration/email-settings']],
+    related: [['Communication History', '/communication/history'], ['Email settings', '/settings/email-settings']],
   },
 
   communicationWhatsApp: {
@@ -86,7 +86,7 @@ export const marketing = {
       ['Open an entry', 'Goes to the record it was logged against.'],
     ],
     tips: ['Nothing is sent from this page.'],
-    related: [['Communication History', '/communication/history'], ['WhatsApp settings', '/administration/whatsapp-settings']],
+    related: [['Communication History', '/communication/history'], ['WhatsApp settings', '/settings/whatsapp-settings']],
   },
 
   communicationHistory: {
@@ -116,7 +116,7 @@ export const marketing = {
       'Keep the status up to date while working on it or waiting for the customer.',
       'When solved, close it with Close Ticket. Reopen Ticket brings it back if the problem returns.',
     ] }],
-    related: [['Customers', '/customers'], ['Ticket settings', '/administration/modules/tickets']],
+    related: [['Customers', '/customers'], ['Ticket settings', '/settings/modules/tickets']],
   },
 
   ticketDetail: {
@@ -191,7 +191,7 @@ export const marketing = {
       ['Send to n8n', 'Administrators only: hands the finding to an n8n workflow (set up in Settings → Automation) so it can notify or act, for example by emailing owners about overdue follow-ups.'],
       ['Workflow activity', 'Administrators see the latest workflow runs and whether they succeeded.'],
     ],
-    related: [['Settings → Automation', '/administration/automation'], ['Leads', '/leads'], ['Deals', '/deals']],
+    related: [['Settings → Automation', '/settings/automation'], ['Leads', '/leads'], ['Deals', '/deals']],
   },
 
   notifications: {
@@ -203,6 +203,6 @@ export const marketing = {
       ['Click a notification', 'Opens the record it is about and marks it read.'],
       ['Mark all as read', 'Clears the unread count in one click.'],
     ],
-    related: [['Tasks', '/tasks'], ['Notification settings', '/administration/notification-settings']],
+    related: [['Tasks', '/tasks'], ['Notification settings', '/settings/notification-settings']],
   },
 }

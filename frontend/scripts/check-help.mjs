@@ -17,12 +17,11 @@ for (const address of addresses) {
   const help = getPageHelp(real)
   if (help.key === 'general') problems.push(`No help for the page ${address}`)
 }
-for (const section of ['company-profile', 'tax-settings', 'security', 'login-history', 'audit-logs', 'notification-settings', 'email-settings', 'whatsapp-settings', 'automation']) {
-  if (getPageHelp(`/administration/${section}`).key !== `administration-${section}`) problems.push(`No help for /administration/${section}`)
+for (const section of ['company-profile', 'personalization', 'tax-settings', 'users', 'departments', 'security', 'login-history', 'audit-logs', 'notification-settings', 'email-settings', 'whatsapp-settings', 'automation']) {
+  if (getPageHelp(`/settings/${section}`).key !== `settings-${section}`) problems.push(`No help for /settings/${section}`)
 }
-if (getPageHelp('/settings/appearance').key !== 'settings-appearance' || getPageHelp('/settings').key !== 'settings-appearance') problems.push('No help for the personal Settings page')
 for (const key of ['leads', 'enquiries', 'companies', 'deals', 'quotations', 'products', 'invoices', 'contracts', 'documents', 'tickets', 'campaigns', 'expenses', 'tasks']) {
-  if (getPageHelp(`/administration/modules/${key}`).key !== `administration-modules-${key}`) problems.push(`No help for /administration/modules/${key}`)
+  if (getPageHelp(`/settings/modules/${key}`).key !== `settings-modules-${key}`) problems.push(`No help for /settings/modules/${key}`)
 }
 
 // every entry is complete and unique

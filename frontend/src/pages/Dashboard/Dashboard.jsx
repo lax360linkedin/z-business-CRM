@@ -33,7 +33,7 @@ import { useBranchSummary, SUMMARY_COLUMNS } from '../../hooks/useBranchSummary'
 // deliberately NOT included here since the primary/brand series (Revenue Overview, Lead
 // Source Performance, Leads by Salesperson) must follow the live accent color instead; see
 // `accentHex` from useTheme() below, read fresh on every render so switching the accent in
-// Settings → Appearance recolors these charts immediately, same as every other brand-colored
+// Settings → Personalization recolors these charts immediately, same as every other brand-colored
 // element in the app.
 const COLORS = { emerald: '#10b981', amber: '#f59e0b', sky: '#0ea5e9', violet: '#8b5cf6', rose: '#f43f5e', ink: '#94a3b8' }
 const STAGE_COLORS = {

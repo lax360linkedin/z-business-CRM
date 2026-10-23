@@ -28,7 +28,7 @@ export function BranchSelector({ className }) {
       trigger={
         <button aria-label={`Branch: ${label}. Change branch`} className={clsx('inline-flex h-9 items-center gap-1.5 rounded-lg border border-ink-200 bg-white px-2.5 text-xs font-medium text-ink-700 hover:border-ink-300 dark:border-ink-700 dark:bg-ink-900 dark:text-ink-200', className)}>
           {scope === ALL_BRANCHES ? <Globe2 size={13} className="shrink-0 text-brand-600 dark:text-brand-400" /> : <MapPin size={13} className="shrink-0 text-brand-600 dark:text-brand-400" />}
-          <span className="whitespace-nowrap">{label}</span>
+          <span className="whitespace-nowrap max-[420px]:hidden">{label}</span>
           <ChevronDown size={13} className="shrink-0 text-ink-400" />
         </button>
       }

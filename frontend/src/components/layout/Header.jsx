@@ -42,7 +42,7 @@ export function Header() {
   const markAllRead = () => { markAllNotificationsRead() }
 
   return (
-    <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-ink-100 bg-white/80 px-4 backdrop-blur-md sm:px-6 dark:border-ink-800 dark:bg-ink-950/80">
+    <header className="sticky top-0 z-20 flex h-16 items-center gap-2 border-b border-ink-100 bg-white/80 px-3 backdrop-blur-md sm:gap-3 sm:px-6 dark:border-ink-800 dark:bg-ink-950/80">
       <IconButton icon={Menu} className="lg:hidden" onClick={() => setMobileOpen(true)} />
 
       <button
@@ -56,7 +56,7 @@ export function Header() {
       <IconButton icon={Search} className="sm:hidden" onClick={() => setSearchOpen(true)} />
       <BranchSelector />
 
-      <div className="ml-auto flex items-center gap-1.5 sm:gap-2">
+      <div className="ml-auto flex items-center gap-1 sm:gap-2">
         <Dropdown
           align="right"
           width="w-64"
@@ -104,6 +104,7 @@ export function Header() {
         </Dropdown>
 
         <IconButton icon={theme === 'dark' ? Sun : Moon} onClick={toggleTheme} />
+        <IconButton icon={SettingsIcon} onClick={() => navigate(hasPermission('Settings', 'view') ? '/settings' : '/settings/personalization')} aria-label="Settings" title="Settings" />
         <IconButton icon={HelpCircle} className="hidden sm:inline-flex" onClick={openHelp} aria-label="Help for this page" title="Help for this page (?)" />
 
         <div className="mx-1 hidden h-6 w-px bg-ink-200 sm:block dark:bg-ink-800" />
@@ -130,7 +131,7 @@ export function Header() {
           <DropdownDivider />
           <DropdownItem icon={User} onClick={() => navigate('/profile')}>My Profile</DropdownItem>
           <DropdownItem icon={SettingsIcon} onClick={() => navigate('/settings')}>Settings</DropdownItem>
-          {hasPermission('Settings', 'view') && <DropdownItem icon={ShieldCheck} onClick={() => navigate('/administration')}>Administration</DropdownItem>}
+          {['Branches', 'User Management', 'Roles & Permissions'].some((m) => hasPermission(m, 'view')) && <DropdownItem icon={ShieldCheck} onClick={() => navigate('/administration')}>Administration</DropdownItem>}
           <DropdownItem icon={HelpCircle} className="sm:hidden" onClick={openHelp}>Help for this page</DropdownItem>
           <DropdownItem icon={KeyRound} onClick={() => navigate('/change-password')}>Change Password</DropdownItem>
           <DropdownDivider />

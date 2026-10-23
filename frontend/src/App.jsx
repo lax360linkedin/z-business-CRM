@@ -1,5 +1,6 @@
 import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from 'react-router-dom'
-import { ThemeProvider } from './context/ThemeContext'
+import { ThemeProvider, useBindThemeUser } from './context/ThemeContext'
+import { useAuth } from './context/AuthContext'
 import { ToastProvider } from './context/ToastContext'
 import { AuthProvider } from './context/AuthContext'
 import { SidebarProvider } from './context/SidebarContext'
@@ -98,11 +99,19 @@ function MovedTo({ to }) {
   return <Navigate to={`${id ? to.replace(':id', encodeURIComponent(id)) : to}${search}`} replace />
 }
 
+/** Each signed-in person keeps their own Personalization (in this browser): tells the theme who is signed in. */
+function ThemeUserSync() {
+  const { user } = useAuth()
+  useBindThemeUser(user?.id)
+  return null
+}
+
 function App() {
   return (
     <ThemeProvider>
       <ToastProvider>
         <AuthProvider>
+          <ThemeUserSync />
           <BranchProvider>
           <SidebarProvider>
             <BrowserRouter>

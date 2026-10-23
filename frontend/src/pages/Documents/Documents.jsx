@@ -194,7 +194,7 @@ export default function Documents() {
       <PageHeader title="Documents" description="The central, access-controlled repository for every file in the CRM — each one linked to the customer, deal, contract or project it belongs to."
         actions={<>
           <ExportMenu title="Documents" noun="document" columns={exportColumns} rows={() => filtered} filters={exportFilters} />
-          {has('manageCategories') && <Button variant="secondary" icon={Settings2} onClick={() => navigate('/administration/modules/documents')}>Settings</Button>}
+          {has('manageCategories') && <Button variant="secondary" icon={Settings2} onClick={() => navigate('/settings/modules/documents')}>Settings</Button>}
           {has('createFolders') && <Button variant="secondary" icon={FolderPlus} onClick={() => setFolderModal(true)}>New folder</Button>}
           {canUpload && <Button icon={uploadOpen ? X : UploadCloud} onClick={() => setUploadOpen((o) => !o)}>{uploadOpen ? 'Close upload' : 'Upload'}</Button>}
         </>} />

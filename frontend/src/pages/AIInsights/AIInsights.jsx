@@ -113,7 +113,7 @@ function RecentRuns({ runs }) {
     <section className="mt-5 rounded-2xl border border-ink-100 bg-white p-5 shadow-card dark:border-ink-800 dark:bg-ink-900">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex items-center gap-2"><Zap size={16} className="text-brand-500" /><h2 className="text-sm font-semibold text-ink-900 dark:text-ink-50">Workflow activity</h2></div>
-        <Link to="/administration/automation" className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-300">Manage automation</Link>
+        <Link to="/settings/automation" className="text-xs font-medium text-brand-600 hover:underline dark:text-brand-300">Manage automation</Link>
       </div>
       {runs.length === 0 ? (
         <p className="text-sm text-ink-500 dark:text-ink-400">No workflow has run yet. Connect n8n and add a workflow in Settings → Automation, then insights and CRM events can trigger it.</p>

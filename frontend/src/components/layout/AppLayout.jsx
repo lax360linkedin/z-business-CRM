@@ -80,7 +80,7 @@ export function AppLayout() {
   return (
     <HelpProvider>
     <RefreshProvider reopen={reopen} alwaysReopen={DETAIL.test(location.pathname)} refreshable={allowed && !NOT_REFRESHABLE.test(location.pathname)}>
-    <div className="min-h-screen bg-ink-50 dark:bg-ink-950">
+    <div className="app-bg min-h-screen">
       <Sidebar />
       <div className={clsx('flex min-h-screen flex-col transition-[margin] duration-200', collapsed ? 'lg:ml-[76px]' : 'lg:ml-[260px]')}>
         <Header />
